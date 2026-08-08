@@ -195,6 +195,18 @@ To make the English cover fields fill those dedicated roles, use the settings
 shown under [Language labels](#language-labels). The labels are configurable for
 other languages as well.
 
+### Diagrams and the page they get
+
+Every ` ```mermaid ` block is rendered to vector SVG, captioned as
+`Figura N — <the nearest heading>` and given a page of its own, scaled to fill
+it. What sits directly above the block comes along: the run of headings, plus
+the paragraphs immediately before it while their combined text stays under
+`diagram_lead_chars` (480 characters, about five lines). So a section that opens
+with a heading and a couple of lines and then shows its diagram is printed as
+one page, instead of leaving the heading stranded at the foot of the previous
+one. Longer prose stays where it is and the diagram takes the whole sheet —
+raise or lower `diagram_lead_chars` in `mdpdf.toml` to move that line.
+
 ### A trap worth knowing about
 
 If you export the same `.md` through another path — a VS Code extension, the
@@ -220,6 +232,8 @@ brand  = "Acme"            # printed above the title on the cover
 footer = "Confidential · Acme"  # page footer; omitted when empty
 lang = "pt-BR"
 keywords = ["SRS", "requirements"]
+
+diagram_lead_chars = 480   # how much text may share a page with a diagram
 
 [colors]                   # override any theme token
 accent   = "#7a1fa2"

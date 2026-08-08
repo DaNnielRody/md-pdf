@@ -213,14 +213,9 @@ h2 {
   hyphens: none;
 }
 
-h2.heading--diagram {
-  page: diagram;
-}
-
 /* A short paragraph ending in a colon semantically introduces the Mermaid
-   that follows, and must travel with it onto the same A4 portrait sheet. */
+   that follows, so it is set tight against the figure it announces. */
 p.diagram-lead {
-  page: diagram;
   break-after: avoid;
   margin: 0 0 3mm;
 }
@@ -396,13 +391,13 @@ figure img {
 
 /* The diagram is fitted with *contain*: never stretched to the page width
    (which distorted the scale of tall diagrams) and never taller than the
-   usable height, which already allows for the caption and header clearance. */
+   space the figure was actually given inside its .diagram-block. */
 figure.figure--diagram img {
   border: none;
   width: 100%;
   height: auto;
   max-width: 100%;
-  max-height: 237mm;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -422,36 +417,33 @@ figcaption {
 }
 
 /* Diagrams use the same A4 portrait sheet as the rest of the document. The
-   flex box takes the usable height (297mm - 24mm - 20mm) and centres the
-   figure without changing the physical page format. */
-.diagram-page {
+   block takes the usable height (297mm - 24mm - 20mm) without changing the
+   physical page format, and hands whatever is left after the headings and the
+   lead-in paragraph to the figure — so a section that opens with a couple of
+   lines and then a diagram keeps everything on one page, and the diagram is
+   never scaled down more than that companion text actually costs. */
+.diagram-block {
   page: diagram;
   break-before: page;
   break-after: page;
-  margin: 0;
+  break-inside: avoid;
   height: 253mm;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.diagram-block h2 { break-before: avoid; }
+.diagram-block__lead > :first-child { margin-top: 0; }
+
+.diagram-page {
+  margin: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding-bottom: 9mm;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-h2.heading--diagram + .diagram-page {
-  break-before: auto;
-  height: 220mm;
-}
-
-h2.heading--diagram + .diagram-page img {
-  max-height: 204mm;
-}
-
-p.diagram-lead + .diagram-page {
-  break-before: auto;
-  height: 238mm;
-}
-
-p.diagram-lead + .diagram-page img {
-  max-height: 222mm;
 }
 
 pre {

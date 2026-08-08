@@ -51,6 +51,7 @@ DEFAULTS: dict = {
                    "Table of Contents", "Contents"],
     "field_table_header": "Campo",
     "figure_label": "Figura",
+    "diagram_lead_chars": 480,
     "cover_subtitle_field": "produto",
     "cover_kind_field": "documento",
     "cover_stamp_field": "classificação",
@@ -531,6 +532,26 @@ def markdown_to_html(md: str) -> str:
     return result.stdout
 
 
+# A diagram already wrapped in its block, or a bare figure — matched in that
+# order so a second postprocess() pass leaves an existing block alone.
+DIAGRAM_ELEMENT_RE = re.compile(
+    r'<div class="diagram-block">[\s\S]*?</figure></div>'
+    r'|(?P<open><figure\b[^>]*>)(?:(?!</figure>)[\s\S])*</figure>'
+)
+
+# The heading or paragraph immediately above a given point in the document.
+COMPANION_RE = re.compile(
+    r"<(?P<tag>p|h[2-6])\b[^>]*>(?:(?!</(?P=tag)>)[\s\S])*</(?P=tag)>\s*\Z"
+)
+
+
+def visible_text(html: str) -> str:
+    """The text a reader sees, without the markup or the surrounding blanks."""
+    return unescape(re.sub(r"<[^>]+>", "", html)).strip(
+        " \t\r\n\f\v\u00a0\u200b"
+    )
+
+
 def postprocess(html: str, cfg: dict) -> str:
     """Mark the table of contents and turn images into captioned figures."""
     titles = "|".join(re.escape(t) for t in cfg["toc_titles"])
@@ -581,24 +602,9 @@ def postprocess(html: str, cfg: dict) -> str:
             and {"figure--diagram", "diagram-page"}.issubset(classes.split())
         )
 
-    def mark_diagram_heading(match: re.Match) -> str:
-        heading, content, figure = match.groups()
-        if not is_diagram_figure(figure):
-            return heading + content + figure
-        return add_class(heading, "heading--diagram") + content + figure
-
-    html = re.sub(
-        r'(<h2\b[^>]*>)((?:(?!<h2\b)[\s\S])*?</h2>)(\s*<figure\b[^>]*>)',
-        mark_diagram_heading,
-        html,
-    )
-
     def mark_diagram_lead(match: re.Match) -> str:
         opening, content, closing, whitespace, figure = match.groups()
-        visible_text = unescape(re.sub(r"<[^>]+>", "", content)).rstrip(
-            " \t\r\n\f\v\u00a0\u200b"
-        )
-        if not visible_text.endswith(":") or not is_diagram_figure(figure):
+        if not visible_text(content).endswith(":") or not is_diagram_figure(figure):
             return opening + content + closing + whitespace + figure
         return add_class(opening, "diagram-lead") + content + closing + whitespace + figure
 
@@ -607,6 +613,48 @@ def postprocess(html: str, cfg: dict) -> str:
         mark_diagram_lead,
         html,
     )
+
+    def companion_start(html: str, figure_start: int, floor: int) -> int:
+        """Walk back over the headings and short prose that introduce a diagram.
+
+        A section that opens with a heading and a few lines and then shows its
+        diagram reads as one unit, so it is printed as one: the group is the run
+        of headings, then the paragraphs under them, then the figure. Paragraphs
+        travel only while their combined text stays within `diagram_lead_chars`,
+        which is what keeps a long section from being dragged onto the diagram
+        page and shrinking the figure; and nothing above the headings travels,
+        since that text belongs to the section that just ended.
+        """
+        budget = int(cfg["diagram_lead_chars"])
+        cursor = figure_start
+        heading_reached = False
+        while (element := COMPANION_RE.search(html, floor, cursor)) is not None:
+            if element.group("tag") != "p":
+                heading_reached = True
+                cursor = element.start()
+                continue
+            budget -= len(visible_text(element.group(0)))
+            if heading_reached or budget < 0:
+                break
+            cursor = element.start()
+        return cursor
+
+    blocks: list[str] = []
+    last = 0
+    for element in DIAGRAM_ELEMENT_RE.finditer(html):
+        figure = element.group(0)
+        if not element.group("open") or not is_diagram_figure(element.group("open")):
+            continue
+
+        start = companion_start(html, element.start(), last)
+        blocks.append(html[last:start])
+        blocks.append('<div class="diagram-block"><div class="diagram-block__lead">')
+        blocks.append(html[start:element.start()])
+        blocks.append(f"</div>{figure}</div>")
+        last = element.end()
+
+    blocks.append(html[last:])
+    html = "".join(blocks)
 
     html = re.sub(r'<p>(<img src="[^"]*"[^>]*/?>)</p>', r"<figure>\1</figure>", html)
     return html
