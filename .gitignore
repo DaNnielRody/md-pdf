@@ -1,0 +1,8 @@
+.codegraph/
+__pycache__/
+*.py[cod]
+*.pdf
+
+# Local tooling: agent config and the code index. Never published.
+.claude/
+codegraph.db

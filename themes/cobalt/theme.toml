@@ -1,0 +1,24 @@
+description = "Cobalt — cobalt and sky blue on white paper, system fonts"
+
+# Cover comes from base.css: full-bleed accent, light text. No style.css here
+# on purpose — this theme is palette only.
+
+[colors]
+ink = "#1e2229"
+ink-soft = "#474f5a"
+ink-muted = "#767e89"
+accent = "#0b3fd4"
+accent-deep = "#072b91"
+accent-2 = "#5aa2f0"
+accent-2-ink = "#12599f"
+paper = "#ffffff"
+paper-alt = "#f2f5fd"
+hairline = "#d4dcef"
+hairline-soft = "#e7edfa"
+cover-ink = "#f6f8ff"
+cover-ink-soft = "#c9d8fb"
+sans = '"DejaVu Sans", "Segoe UI", system-ui, sans-serif'
+mono = '"DejaVu Sans Mono", ui-monospace, Consolas, monospace'
+
+[mermaid]
+fontFamily = "DejaVu Sans, Segoe UI, sans-serif"

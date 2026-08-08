@@ -1,0 +1,468 @@
+@page {
+  size: A4;
+  margin: 24mm 20mm 20mm 20mm;
+
+  @top-left {
+    content: string(doc-title);
+    width: 88mm;
+    font-family: var(--sans);
+    font-size: 7.5pt;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    text-align: left;
+    vertical-align: bottom;
+    padding-bottom: 2.6mm;
+    border-bottom: 0.4pt solid var(--hairline);
+    hyphens: none;
+  }
+  @top-right {
+    content: string(section-title);
+    width: 82mm;
+    font-family: var(--sans);
+    font-size: 7.5pt;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    text-align: right;
+    vertical-align: bottom;
+    padding-bottom: 2.6mm;
+    border-bottom: 0.4pt solid var(--hairline);
+    hyphens: none;
+  }
+  @bottom-left {
+    font-family: var(--sans);
+    font-size: 7pt;
+    color: var(--ink-muted);
+    vertical-align: top;
+    padding-top: 4mm;
+  }
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    vertical-align: top;
+    padding-top: 4mm;
+  }
+}
+
+@page cover {
+  margin: 0;
+  @top-left { content: none; border: none; }
+  @top-right { content: none; border: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+html {
+  font-family: var(--sans);
+  font-size: 10pt;
+  line-height: 1.55;
+  color: var(--ink);
+  hyphens: auto;
+}
+
+body { margin: 0; }
+
+p { margin: 0 0 0.62em; text-align: justify; }
+
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+a { color: var(--accent); text-decoration: none; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--paper-alt);
+  border: 0.4pt solid var(--hairline-soft);
+  border-radius: 2pt;
+  padding: 0.5pt 2.5pt;
+}
+
+hr { display: none; }
+
+/* The code box does not work on the cover: it disappears against an accent
+   background, and at 30pt it turns into a heavy block. Here code is set apart
+   by the mono family alone, which survives any theme background. */
+.cover code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.88em;
+}
+
+.cover {
+  page: cover;
+  break-after: page;
+  height: 297mm;
+  background: var(--accent);
+  color: var(--cover-ink);
+  padding: 32mm 24mm 24mm 24mm;
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.cover__rule {
+  width: 34mm;
+  height: 2.4mm;
+  background: var(--accent-2);
+  margin-bottom: 12mm;
+}
+
+/* A logo takes the place of the rule: shown together they would compete for
+   the same role as the mark at the top of the cover. */
+.cover__logo {
+  height: 15mm;
+  width: auto;
+  max-width: 70mm;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 11mm;
+}
+
+.cover--logo .cover__rule { display: none; }
+
+.cover__eyebrow {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin: 0 0 6mm;
+}
+
+.cover__title {
+  string-set: doc-title content();
+  font-size: 30pt;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 5mm;
+  text-align: left;
+  hyphens: none;
+}
+
+.cover__subtitle {
+  font-size: 12pt;
+  font-weight: 300;
+  line-height: 1.4;
+  color: var(--cover-ink-soft);
+  margin: 0;
+  max-width: 135mm;
+  text-align: left;
+  hyphens: none;
+}
+
+.cover__spacer { flex: 1 1 auto; min-height: 24mm; }
+
+.cover__meta {
+  border-top: 0.6pt solid rgba(255, 255, 255, 0.28);
+  padding-top: 7mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm 10mm;
+}
+
+.cover__meta dt {
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin: 0 0 1.2mm;
+}
+
+.cover__meta dd {
+  font-size: 10.5pt;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.35;
+  hyphens: none;
+}
+
+.cover__meta dd em { font-weight: 300; font-style: italic; color: var(--cover-ink-soft); }
+
+.cover__stamp {
+  margin-top: 9mm;
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cover-ink);
+  border: 0.8pt solid var(--accent-2);
+  border-radius: 2mm;
+  padding: 2.2mm 4mm;
+  align-self: flex-start;
+}
+
+h2 {
+  string-set: section-title content();
+  break-before: page;
+  break-after: avoid;
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  margin: 0 0 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.6pt solid var(--accent-2);
+  hyphens: none;
+}
+
+h2.heading--diagram {
+  page: diagram;
+}
+
+/* A short paragraph ending in a colon semantically introduces the Mermaid
+   that follows, and must travel with it onto the same A4 portrait sheet. */
+p.diagram-lead {
+  page: diagram;
+  break-after: avoid;
+  margin: 0 0 3mm;
+}
+
+h3 {
+  break-after: avoid;
+  font-size: 12.5pt;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 7mm 0 2.5mm;
+  hyphens: none;
+}
+
+h4 {
+  break-after: avoid;
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin: 5mm 0 2mm;
+  hyphens: none;
+}
+
+h5 {
+  break-after: avoid;
+  font-size: 9.5pt;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 4mm 0 1.5mm;
+}
+
+h2 + h3, h3 + h4 { margin-top: 0; }
+
+h2 + *, h3 + *, h4 + *, h5 + * { break-before: avoid; }
+
+p, li { orphans: 3; widows: 3; }
+
+ul, ol { margin: 0 0 0.7em; padding-left: 5.5mm; }
+li { margin-bottom: 0.22em; text-align: justify; }
+li > ul, li > ol { margin-top: 0.22em; margin-bottom: 0.3em; }
+li::marker { color: var(--accent-2-ink); }
+
+ul.task-list { list-style: none; padding-left: 0; }
+
+ul.task-list > li {
+  padding-left: 7mm;
+  text-indent: -7mm;
+  margin-bottom: 1.4mm;
+}
+
+ul.task-list > li::before {
+  content: "";
+  display: inline-block;
+  width: 3.1mm;
+  height: 3.1mm;
+  border: 0.7pt solid var(--accent);
+  border-radius: 0.6mm;
+  margin-right: 3.5mm;
+  vertical-align: -0.2mm;
+  text-indent: 0;
+}
+
+ul.task-list input[type="checkbox"] { display: none; }
+
+.toc { break-after: page; }
+.toc ol { list-style: decimal; margin: 0; padding-left: 8mm; }
+.toc ul { list-style: none; margin: 0; padding-left: 6mm; }
+
+.toc li {
+  text-align: left;
+  margin-bottom: 0.2mm;
+  line-height: 1.16;
+  hyphens: none;
+}
+
+.toc > ol > li {
+  margin-top: 1.1mm;
+  font-weight: 700;
+  font-size: 9.5pt;
+  color: var(--accent);
+  break-inside: avoid;
+}
+.toc > ol > li::marker { color: var(--accent); }
+
+.toc a { color: inherit; text-decoration: none; }
+
+.toc a::after {
+  content: " " leader(". ") " " target-counter(attr(href), page);
+  font-family: var(--mono);
+  font-size: 0.82em;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.toc ol ul {
+  margin-top: 0.5mm;
+  font-weight: 400;
+  font-size: 8.8pt;
+  color: var(--ink-soft);
+}
+
+.toc ol ul ul {
+  margin-top: 0.4mm;
+  font-size: 8.5pt;
+  color: var(--ink-muted);
+}
+
+.toc em { color: var(--ink-muted); font-size: 0.85em; font-weight: 400; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 3mm 0 6mm;
+  font-size: 8.6pt;
+  line-height: 1.4;
+}
+
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+
+th {
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 8pt;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: 2mm 2.5mm;
+  border: none;
+  hyphens: none;
+}
+
+td {
+  padding: 1.8mm 2.5mm;
+  border-bottom: 0.4pt solid var(--hairline);
+  vertical-align: top;
+  text-align: left;
+}
+
+tbody tr:nth-child(even) td { background: var(--paper-alt); }
+
+td code { font-size: 0.9em; }
+
+table td:first-child strong { color: var(--accent-deep); }
+
+.table--fields { table-layout: fixed; }
+.table--fields th:first-child,
+.table--fields td:first-child { width: 32mm; hyphens: none; }
+
+blockquote {
+  margin: 4mm 0;
+  padding: 3mm 5mm;
+  background: var(--paper-alt);
+  border-left: 2pt solid var(--accent-2);
+  color: var(--ink-soft);
+  break-inside: avoid;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+figure {
+  margin: 5mm 0 6mm;
+  break-inside: avoid;
+  text-align: center;
+}
+
+figure img {
+  max-width: 100%;
+  max-height: 200mm;
+  border: 0.5pt solid var(--hairline);
+  border-radius: 2mm;
+}
+
+/* The diagram is fitted with *contain*: never stretched to the page width
+   (which distorted the scale of tall diagrams) and never taller than the
+   usable height, which already allows for the caption and header clearance. */
+figure.figure--diagram img {
+  border: none;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 237mm;
+  object-fit: contain;
+}
+
+figcaption {
+  font-size: 8pt;
+  color: var(--ink-muted);
+  margin-top: 2.5mm;
+  text-align: center;
+  hyphens: none;
+}
+
+@page diagram {
+  size: A4;
+  margin: 24mm 20mm 20mm 20mm;
+  @top-left { width: 88mm; }
+  @top-right { width: 82mm; }
+}
+
+/* Diagrams use the same A4 portrait sheet as the rest of the document. The
+   flex box takes the usable height (297mm - 24mm - 20mm) and centres the
+   figure without changing the physical page format. */
+.diagram-page {
+  page: diagram;
+  break-before: page;
+  break-after: page;
+  margin: 0;
+  height: 253mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+h2.heading--diagram + .diagram-page {
+  break-before: auto;
+  height: 220mm;
+}
+
+h2.heading--diagram + .diagram-page img {
+  max-height: 204mm;
+}
+
+p.diagram-lead + .diagram-page {
+  break-before: auto;
+  height: 238mm;
+}
+
+p.diagram-lead + .diagram-page img {
+  max-height: 222mm;
+}
+
+pre {
+  font-family: var(--mono);
+  font-size: 8pt;
+  line-height: 1.45;
+  background: var(--paper-alt);
+  border: 0.4pt solid var(--hairline);
+  border-radius: 2mm;
+  padding: 3mm 4mm;
+  white-space: pre-wrap;
+  break-inside: avoid;
+}
+pre code { background: none; border: none; padding: 0; }

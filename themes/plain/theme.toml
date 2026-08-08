@@ -1,0 +1,18 @@
+description = "Neutral — grey and slate blue, system fonts (no files)"
+
+[colors]
+ink = "#1f2328"
+ink-soft = "#4b5259"
+ink-muted = "#7a8188"
+accent = "#243b53"
+accent-deep = "#16283a"
+accent-2 = "#4b93c4"
+accent-2-ink = "#1f5b80"
+paper = "#ffffff"
+paper-alt = "#f5f6f7"
+hairline = "#d7dade"
+hairline-soft = "#e8eaec"
+cover-ink = "#f7f8f9"
+cover-ink-soft = "#c3cdd6"
+sans = '"DejaVu Sans", "Segoe UI", system-ui, sans-serif'
+mono = '"DejaVu Sans Mono", ui-monospace, Consolas, monospace'
