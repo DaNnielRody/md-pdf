@@ -77,7 +77,7 @@ Should list `plain` and `cobalt`.
 ```bash
 mdpdf                          # build the only .md in the current folder
 mdpdf document.md
-mdpdf document.md -o /tmp/out.pdf
+mdpdf document.md -o "Client Report.pdf" # choose the output PDF name
 mdpdf document.md -t plain     # override the theme for this run only
 mdpdf --keep-html              # keep the intermediate HTML for debugging
 
@@ -89,7 +89,7 @@ mdpdf design docs/DESIGN.md -n # dry run: show the result, write nothing
 
 | Flag | Applies to | Meaning |
 |---|---|---|
-| `-o, --output` | build, design | output path (PDF, or the TOML for `design`) |
+| `-o, --output` | build, design | output filename or path (PDF, or the TOML for `design`) |
 | `-t, --theme` | build, init, design | theme to use |
 | `-n, --dry-run` | design | print the result without writing |
 | `--keep-html` | build | preserve the intermediate HTML |
@@ -157,42 +157,43 @@ mdpdf document.md
 ```markdown
 # Product Name — Document Type
 
-**Cliente:** ...
-**Produto:** ...
-**Documento:** ...
-**Versão:** 1.0
-**Data:** 07/08/2026
-**Autor(es):** ...
-**Classificação:** Confidential
+**Client:** ...
+**Product:** ...
+**Document:** ...
+**Version:** 1.0
+**Date:** 2026-08-07
+**Author(s):** ...
+**Classification:** Confidential
 
 ---
 
-## Índice Analítico
+## Table of Contents
 
-1. [Introdução](#1-introdução)
-   - 1.1 [Finalidade](#11-finalidade)
+1. [Introduction](#1-introduction)
+   - 1.1 [Purpose](#11-purpose)
 
 ---
 
-## 1. Introdução
+## 1. Introduction
 ```
 
 - The `#` heading and the `**Field:** value` lines become the **cover**. The
   title is split on the `—`: what comes before is the large name, what comes
   after is the subtitle.
-- `Produto`, `Documento` and `Classificação` have dedicated roles on the cover;
+- `Product`, `Document` and `Classification` have dedicated roles on the cover;
   every other field becomes a cell in the metadata grid at its foot.
 - The identification block ends at the first `---` **or** the first `##`.
 - The title and the field values take inline `` `code` `` and `*emphasis*`, so a
   document named after an API can wear its own name: `` # `volatile` and
   `Interlocked` `` sets the code in the mono face on the cover, and the running
   header and the PDF metadata get the plain-text reading of it.
-- The list right below `## Índice Analítico` becomes the table of contents, with
+- The list right below `## Table of Contents` becomes the table of contents, with
   dot leaders and page numbers. Its links must point at GitHub-style anchors
-  (`#1-introdução`).
+  (`#1-introduction`).
 
-Those field names are the Portuguese defaults and are configurable — see
-[Language labels](#language-labels).
+To make the English cover fields fill those dedicated roles, use the settings
+shown under [Language labels](#language-labels). The labels are configurable for
+other languages as well.
 
 ### A trap worth knowing about
 
@@ -235,12 +236,12 @@ delivered under a name the source file cannot carry — a submission convention,
 client's numbering scheme:
 
 ```toml
-name = "SaintThomas(Laboratório S07 - Arch3)"
+name = "Saint Thomas Aquinas - Summa Theologica"
 ```
 
 ```console
 $ mdpdf lecture-notes.md
-✓ SaintThomas(Laboratório S07 - Arch3).pdf
+✓ Saint Thomas Aquinas - Summa Theologica.pdf
 ```
 
 - `.pdf` is appended when missing, and never duplicated if you write it yourself.
