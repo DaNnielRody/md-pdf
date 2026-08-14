@@ -435,6 +435,27 @@ figcaption {
 .diagram-block h2 { break-before: avoid; }
 .diagram-block__lead > :first-child { margin-top: 0; }
 
+/* Wide, shallow diagrams gain no legibility from owning the full sheet: the
+   usable width is identical in normal flow. Keep the complete semantic group
+   indivisible, but let the prose after it use the vertical space left over. */
+.diagram-block.diagram-block--inline {
+  page: auto;
+  break-before: auto;
+  break-after: auto;
+  break-inside: avoid;
+  height: auto;
+  display: block;
+  margin: 5mm 0 6mm;
+}
+
+.diagram-block--inline.diagram-block--section {
+  break-before: page;
+}
+
+.diagram-block--inline .diagram-inline {
+  margin: 3mm 0 0;
+}
+
 .diagram-page {
   margin: 0;
   height: 100%;

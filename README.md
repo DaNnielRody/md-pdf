@@ -197,15 +197,41 @@ other languages as well.
 
 ### Diagrams and the page they get
 
-Every ` ```mermaid ` block is rendered to vector SVG, captioned as
-`Figura N — <the nearest heading>` and given a page of its own, scaled to fill
-it. What sits directly above the block comes along: the run of headings, plus
-the paragraphs immediately before it while their combined text stays under
+Every ` ```mermaid ` block is rendered to vector SVG and captioned as
+`Figura N — <the nearest heading>`. By default it gets a page of its own, fitted
+inside the usable sheet. What sits directly above the block comes along: the
+run of headings, plus the paragraphs immediately before it while their combined
+text stays under
 `diagram_lead_chars` (480 characters, about five lines). So a section that opens
 with a heading and a couple of lines and then shows its diagram is printed as
 one page, instead of leaving the heading stranded at the foot of the previous
 one. Longer prose stays where it is and the diagram takes the whole sheet —
 raise or lower `diagram_lead_chars` in `mdpdf.toml` to move that line.
+
+Documents with many wide, shallow diagrams can opt into adaptive pagination:
+
+```toml
+diagram_layout = "auto"
+diagram_inline_min_ratio = 1.5
+```
+
+`auto` reads the rendered SVG's `viewBox`: diagrams at least 1.5 times wider
+than tall stay at full text width but flow with the surrounding prose; taller
+diagrams keep the dedicated sheet. The complete heading/lead/figure/caption
+group remains indivisible, and a `##` inside an inline group still opens a fresh
+page. `page` preserves the original all-dedicated behavior and remains the
+default; `inline` puts every diagram in the flow.
+
+Override an individual diagram without changing the document setting:
+
+````markdown
+```mermaid {layout=page}
+flowchart TB
+    A --> B
+```
+````
+
+The accepted overrides are `auto`, `page` and `inline`.
 
 ### A trap worth knowing about
 
@@ -234,6 +260,8 @@ lang = "pt-BR"
 keywords = ["SRS", "requirements"]
 
 diagram_lead_chars = 480   # how much text may share a page with a diagram
+diagram_layout = "page"    # page, auto or inline
+diagram_inline_min_ratio = 1.5 # in auto, wide diagrams flow with the prose
 
 [colors]                   # override any theme token
 accent   = "#7a1fa2"

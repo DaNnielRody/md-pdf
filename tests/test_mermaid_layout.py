@@ -12,6 +12,9 @@ import mdpdf
 from weasyprint import HTML
 
 FIGURE = '<figure class="figure--diagram diagram-page"><img src="diagram.svg"></figure>'
+INLINE_FIGURE = (
+    '<figure class="figure--diagram diagram-inline"><img src="diagram.svg"></figure>'
+)
 
 
 class MermaidLayoutTests(unittest.TestCase):
@@ -30,6 +33,21 @@ class MermaidLayoutTests(unittest.TestCase):
             r'<div class="diagram-block"><div class="diagram-block__lead">'
             r'<h2 id="event-loop" class="section-title">4\. Event loop</h2>\s*</div>'
             r'<figure class="figure--diagram diagram-page">.*?</figure></div>',
+        )
+
+    def test_groups_an_inline_diagram_without_turning_it_into_a_page_block(self) -> None:
+        html = (
+            '<h3 id="fluxo">4.1 Fluxo</h3>'
+            '<p>O desenho resume o fluxo:</p>' + INLINE_FIGURE
+        )
+
+        rendered = mdpdf.postprocess(html, self.cfg)
+
+        self.assertRegex(
+            rendered,
+            r'<div class="diagram-block diagram-block--inline">'
+            r'<div class="diagram-block__lead">.*?4\.1 Fluxo.*?</div>'
+            r'<figure class="figure--diagram diagram-inline">.*?</figure></div>',
         )
 
     def test_groups_the_whole_run_of_headings_and_the_lead_in(self) -> None:
@@ -194,6 +212,109 @@ class MermaidLayoutTests(unittest.TestCase):
                 document.pages[figure_page - 1].width,
                 document.pages[figure_page - 1].height,
             )
+
+    def test_inline_diagram_keeps_its_group_and_shares_the_page_with_following_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            svg = work / "diagram.svg"
+            svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" '
+                'viewBox="0 0 1200 300"><text x="20" y="80">DIAGRAMA-LARGO</text></svg>',
+                encoding="utf-8",
+            )
+            cfg, theme_dir = mdpdf.build_config(work / "fixture.md", "cobalt")
+            css = mdpdf.build_stylesheet(cfg, theme_dir, work)
+            body = mdpdf.postprocess(
+                '<h2 id="secao">1. Seção</h2><h3 id="fluxo">1.1 Fluxo</h3>'
+                '<p>O desenho precisa acompanhar esta introdução:</p>'
+                f'<figure class="figure--diagram diagram-inline"><img src="{svg.as_uri()}">'
+                '<figcaption>Figura 1 — Fluxo largo</figcaption></figure>'
+                '<p>Texto posterior deve aproveitar a mesma folha.</p>',
+                cfg,
+            )
+            html = (
+                '<!doctype html><html><head><meta charset="utf-8">'
+                f'<link rel="stylesheet" href="{css.as_uri()}"></head><body>{body}</body></html>'
+            )
+            pdf = work / "fixture.pdf"
+            HTML(string=html, base_url=str(work)).write_pdf(pdf)
+
+            heading_page = self._page_containing(pdf, "1.1 Fluxo")
+            lead_page = self._page_containing(pdf, "precisa acompanhar")
+            figure_page = self._page_containing(pdf, "Figura 1")
+            following_page = self._page_containing(pdf, "Texto posterior")
+
+            self.assertEqual(figure_page, heading_page)
+            self.assertEqual(figure_page, lead_page)
+            self.assertEqual(figure_page, following_page)
+
+    def test_inline_diagram_moves_as_a_whole_when_the_remaining_space_is_too_short(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            svg = work / "diagram.svg"
+            svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" '
+                'viewBox="0 0 1200 300"><text x="20" y="80">DIAGRAMA-LARGO</text></svg>',
+                encoding="utf-8",
+            )
+            cfg, theme_dir = mdpdf.build_config(work / "fixture.md", "cobalt")
+            css = mdpdf.build_stylesheet(cfg, theme_dir, work)
+            body = mdpdf.postprocess(
+                '<p>Conteúdo anterior.</p><div style="height: 205mm"></div>'
+                '<h3 id="fluxo">1.1 Fluxo indivisível</h3>'
+                '<p>Esta introdução viaja com o desenho:</p>'
+                f'<figure class="figure--diagram diagram-inline"><img src="{svg.as_uri()}">'
+                '<figcaption>Figura 1 — Fluxo indivisível</figcaption></figure>',
+                cfg,
+            )
+            html = (
+                '<!doctype html><html><head><meta charset="utf-8">'
+                f'<link rel="stylesheet" href="{css.as_uri()}"></head><body>{body}</body></html>'
+            )
+            pdf = work / "fixture.pdf"
+            HTML(string=html, base_url=str(work)).write_pdf(pdf)
+
+            previous_page = self._page_containing(pdf, "Conteúdo anterior")
+            heading_page = self._page_containing(pdf, "1.1 Fluxo indivisível")
+            lead_page = self._page_containing(pdf, "viaja com o desenho")
+            figure_page = self._page_containing(pdf, "Figura 1")
+
+            self.assertEqual(previous_page + 1, heading_page)
+            self.assertEqual(heading_page, lead_page)
+            self.assertEqual(heading_page, figure_page)
+
+    def test_inline_diagram_does_not_cancel_a_section_page_break(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            svg = work / "diagram.svg"
+            svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" '
+                'viewBox="0 0 1200 300"><text x="20" y="80">DIAGRAMA-LARGO</text></svg>',
+                encoding="utf-8",
+            )
+            cfg, theme_dir = mdpdf.build_config(work / "fixture.md", "cobalt")
+            css = mdpdf.build_stylesheet(cfg, theme_dir, work)
+            body = mdpdf.postprocess(
+                '<h2 id="primeira">1. Primeira seção</h2><p>Texto curto.</p>'
+                '<h2 id="segunda">2. Segunda seção</h2>'
+                '<p>Introdução do diagrama:</p>'
+                f'<figure class="figure--diagram diagram-inline"><img src="{svg.as_uri()}">'
+                '<figcaption>Figura 1 — Segunda seção</figcaption></figure>',
+                cfg,
+            )
+            html = (
+                '<!doctype html><html><head><meta charset="utf-8">'
+                f'<link rel="stylesheet" href="{css.as_uri()}"></head><body>{body}</body></html>'
+            )
+            pdf = work / "fixture.pdf"
+            HTML(string=html, base_url=str(work)).write_pdf(pdf)
+
+            first_page = self._page_containing(pdf, "1. Primeira seção")
+            second_page = self._page_containing(pdf, "2. Segunda seção")
+            figure_page = self._page_containing(pdf, "Figura 1")
+
+            self.assertEqual(first_page + 1, second_page)
+            self.assertEqual(second_page, figure_page)
 
     def test_base_css_keeps_diagram_pages_in_the_standard_portrait_format(self) -> None:
         css = (mdpdf.HOME / "base.css").read_text(encoding="utf-8")

@@ -58,6 +58,111 @@ class MermaidRenderingTests(unittest.TestCase):
         self.assertIn("Figura 1 — Concorrência", rendered)
         self.assertIn("Figura 2 — Concorrência", rendered)
 
+    def test_auto_layout_marks_a_wide_cached_diagram_as_inline(self) -> None:
+        cfg = mdpdf.merge(
+            mdpdf.DEFAULTS,
+            mdpdf.load_toml(mdpdf.THEMES / "plain" / "theme.toml"),
+        )
+        cfg["diagram_layout"] = "auto"
+        source = "flowchart LR\n  A[Início] --> B[Fim]\n"
+        markdown = "## 1. Fluxo\n\n```mermaid\n" + source + "```\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            fingerprint = json.dumps(mdpdf.mermaid_theme(cfg), sort_keys=True)
+            digest = hashlib.sha1((source + fingerprint).encode("utf-8")).hexdigest()[:12]
+            (cache / f"diagram-1-{digest}.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" '
+                'width="900" height="300"/>',
+                encoding="utf-8",
+            )
+
+            rendered = mdpdf.render_mermaid(
+                markdown, cfg, mdpdf.THEMES / "plain", cache
+            )
+
+        self.assertIn('class="figure--diagram diagram-inline"', rendered)
+
+    def test_auto_layout_keeps_a_tall_cached_diagram_on_its_own_page(self) -> None:
+        cfg = mdpdf.merge(
+            mdpdf.DEFAULTS,
+            mdpdf.load_toml(mdpdf.THEMES / "plain" / "theme.toml"),
+        )
+        cfg["diagram_layout"] = "auto"
+        source = "flowchart TB\n  A[Início] --> B[Fim]\n"
+        markdown = "## 1. Fluxo\n\n```mermaid\n" + source + "```\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            fingerprint = json.dumps(mdpdf.mermaid_theme(cfg), sort_keys=True)
+            digest = hashlib.sha1((source + fingerprint).encode("utf-8")).hexdigest()[:12]
+            (cache / f"diagram-1-{digest}.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 900" '
+                'width="300" height="900"/>',
+                encoding="utf-8",
+            )
+
+            rendered = mdpdf.render_mermaid(
+                markdown, cfg, mdpdf.THEMES / "plain", cache
+            )
+
+        self.assertIn('class="figure--diagram diagram-page"', rendered)
+
+    def test_fence_layout_override_can_keep_a_wide_diagram_on_its_own_page(self) -> None:
+        cfg = mdpdf.merge(
+            mdpdf.DEFAULTS,
+            mdpdf.load_toml(mdpdf.THEMES / "plain" / "theme.toml"),
+        )
+        cfg["diagram_layout"] = "auto"
+        source = "flowchart LR\n  A[Início] --> B[Fim]\n"
+        markdown = (
+            "## 1. Fluxo\n\n```mermaid {layout=page}\n" + source + "```\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            fingerprint = json.dumps(mdpdf.mermaid_theme(cfg), sort_keys=True)
+            digest = hashlib.sha1((source + fingerprint).encode("utf-8")).hexdigest()[:12]
+            (cache / f"diagram-1-{digest}.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" '
+                'width="900" height="300"/>',
+                encoding="utf-8",
+            )
+
+            rendered = mdpdf.render_mermaid(
+                markdown, cfg, mdpdf.THEMES / "plain", cache
+            )
+
+        self.assertNotIn("```mermaid", rendered)
+        self.assertIn('class="figure--diagram diagram-page"', rendered)
+
+    def test_fence_layout_override_can_put_a_tall_diagram_inline(self) -> None:
+        cfg = mdpdf.merge(
+            mdpdf.DEFAULTS,
+            mdpdf.load_toml(mdpdf.THEMES / "plain" / "theme.toml"),
+        )
+        source = "flowchart TB\n  A[Início] --> B[Fim]\n"
+        markdown = (
+            "## 1. Fluxo\n\n```mermaid {layout=inline}\n" + source + "```\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            fingerprint = json.dumps(mdpdf.mermaid_theme(cfg), sort_keys=True)
+            digest = hashlib.sha1((source + fingerprint).encode("utf-8")).hexdigest()[:12]
+            (cache / f"diagram-1-{digest}.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 900" '
+                'width="300" height="900"/>',
+                encoding="utf-8",
+            )
+
+            rendered = mdpdf.render_mermaid(
+                markdown, cfg, mdpdf.THEMES / "plain", cache
+            )
+
+        self.assertNotIn("```mermaid", rendered)
+        self.assertIn('class="figure--diagram diagram-inline"', rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

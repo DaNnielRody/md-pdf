@@ -52,6 +52,8 @@ DEFAULTS: dict = {
     "field_table_header": "Campo",
     "figure_label": "Figura",
     "diagram_lead_chars": 480,
+    "diagram_layout": "page",
+    "diagram_inline_min_ratio": 1.5,
     "cover_subtitle_field": "produto",
     "cover_kind_field": "documento",
     "cover_stamp_field": "classificação",
@@ -303,7 +305,11 @@ def build_stylesheet(cfg: dict, theme_dir: Path, cache: Path) -> Path:
     return css
 
 
-MERMAID_RE = re.compile(r"^```mermaid[ \t]*\n(.*?)^```[ \t]*$", re.S | re.M)
+MERMAID_RE = re.compile(
+    r"^```mermaid(?:[ \t]+\{layout=(?P<layout>auto|page|inline)\})?[ \t]*\n"
+    r"(?P<source>.*?)^```[ \t]*$",
+    re.S | re.M,
+)
 
 
 def find_browser() -> str | None:
@@ -451,6 +457,32 @@ def fit_svg_viewbox(svg: Path, font_size: float = 15.0) -> None:
     svg.write_text(content.replace(tag.group(0), new_tag, 1), encoding="utf-8")
 
 
+def diagram_layout(svg: Path, cfg: dict, requested: str | None = None) -> str:
+    """Choose whether a Mermaid figure owns a page or flows with the prose."""
+    layout = requested or str(cfg.get("diagram_layout", "page"))
+    if layout in {"page", "inline"}:
+        return layout
+    if layout != "auto":
+        sys.exit(f"invalid diagram_layout: {layout} (expected auto, page or inline)")
+
+    try:
+        content = svg.read_text(encoding="utf-8")
+    except OSError:
+        return "page"
+    tag = SVG_TAG_RE.search(content)
+    box = re.search(
+        r'viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"',
+        tag.group(0) if tag else "",
+    )
+    if not box:
+        return "page"
+    width, height = (float(value) for value in box.groups())
+    if height <= 0:
+        return "page"
+    threshold = float(cfg.get("diagram_inline_min_ratio", 1.5))
+    return "inline" if width / height >= threshold else "page"
+
+
 def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
     blocks = list(MERMAID_RE.finditer(md))
     if not blocks:
@@ -487,7 +519,7 @@ def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
     last = 0
     fingerprint = json.dumps(conf, sort_keys=True)
     for idx, block in enumerate(blocks, start=1):
-        source = block.group(1)
+        source = block.group("source")
         digest = hashlib.sha1((source + fingerprint).encode("utf-8")).hexdigest()[:12]
         svg = cache / f"diagram-{idx}-{digest}.svg"
 
@@ -511,9 +543,11 @@ def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
 
         headings = re.findall(r"^#{2,4}\s+([\d.]+)\s+(.+)$", md[:block.start()], re.M)
         caption = headings[-1][1] if headings else "Diagrama"
+        layout = diagram_layout(svg, cfg, block.group("layout"))
+        layout_class = "diagram-inline" if layout == "inline" else "diagram-page"
 
         out.append(
-            '<figure class="figure--diagram diagram-page">'
+            f'<figure class="figure--diagram {layout_class}">'
             f'<img src="{svg.as_uri()}" alt="{escape(caption)}">'
             f'<figcaption>{escape(cfg["figure_label"])} {idx} — {escape(caption)}</figcaption>'
             "</figure>"
@@ -535,7 +569,7 @@ def markdown_to_html(md: str) -> str:
 # A diagram already wrapped in its block, or a bare figure — matched in that
 # order so a second postprocess() pass leaves an existing block alone.
 DIAGRAM_ELEMENT_RE = re.compile(
-    r'<div class="diagram-block">[\s\S]*?</figure></div>'
+    r'<div class="diagram-block(?: [^"]+)*">[\s\S]*?</figure></div>'
     r'|(?P<open><figure\b[^>]*>)(?:(?!</figure>)[\s\S])*</figure>'
 )
 
@@ -599,8 +633,13 @@ def postprocess(html: str, cfg: dict) -> str:
         classes = class_value(tag)
         return bool(
             classes
-            and {"figure--diagram", "diagram-page"}.issubset(classes.split())
+            and "figure--diagram" in classes.split()
+            and {"diagram-page", "diagram-inline"}.intersection(classes.split())
         )
+
+    def diagram_is_inline(tag: str) -> bool:
+        classes = class_value(tag)
+        return bool(classes and "diagram-inline" in classes.split())
 
     def mark_diagram_lead(match: re.Match) -> str:
         opening, content, closing, whitespace, figure = match.groups()
@@ -648,8 +687,15 @@ def postprocess(html: str, cfg: dict) -> str:
 
         start = companion_start(html, element.start(), last)
         blocks.append(html[last:start])
-        blocks.append('<div class="diagram-block"><div class="diagram-block__lead">')
-        blocks.append(html[start:element.start()])
+        lead_html = html[start:element.start()]
+        block_classes = ["diagram-block"]
+        if diagram_is_inline(element.group("open")):
+            block_classes.append("diagram-block--inline")
+            if re.search(r"<h2\b", lead_html):
+                block_classes.append("diagram-block--section")
+        block_class = " ".join(block_classes)
+        blocks.append(f'<div class="{block_class}"><div class="diagram-block__lead">')
+        blocks.append(lead_html)
         blocks.append(f"</div>{figure}</div>")
         last = element.end()
 
@@ -750,6 +796,7 @@ def cmd_themes(_: argparse.Namespace) -> int:
 
 TOML_ORDER = ["theme", "name", "logo", "brand", "footer", "lang", "keywords",
               "toc_titles", "field_table_header", "figure_label",
+              "diagram_layout", "diagram_inline_min_ratio", "diagram_lead_chars",
               "cover_subtitle_field", "cover_kind_field", "cover_stamp_field"]
 
 
