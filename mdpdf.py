@@ -902,7 +902,7 @@ def cmd_design(args: argparse.Namespace) -> int:
 
 
 INIT_TEMPLATE = """# mdpdf configuration for this folder
-theme = "{theme}"
+theme = {theme}
 
 # output PDF filename, so -o is not needed (".pdf" is appended when missing);
 # empty = the PDF inherits the name of the .md
@@ -916,8 +916,8 @@ name = ""
 logo = ""
 
 # mark printed on the cover and in the page footer
-brand = "{brand}"
-footer = "{brand}"
+brand = {brand}
+footer = {brand}
 
 lang = "pt-BR"
 keywords = []
@@ -935,7 +935,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"{target} already exists (use --force to overwrite)", file=sys.stderr)
         return 1
     target.write_text(
-        INIT_TEMPLATE.format(theme=args.theme, brand=args.brand), encoding="utf-8"
+        INIT_TEMPLATE.format(theme=toml_value(args.theme), brand=toml_value(args.brand)), encoding="utf-8"
     )
     print(f"✓ {target}", file=sys.stderr)
     return 0

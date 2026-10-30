@@ -82,7 +82,7 @@ class OutputNamingTests(unittest.TestCase):
 
     def test_output_flag_wins_over_name(self) -> None:
         self.assertEqual(
-            Path("/tmp/explicit.pdf"),
+            Path("/tmp/explicit.pdf").resolve(),
             self.resolve("ignored", "/tmp/explicit.pdf"),
         )
 
