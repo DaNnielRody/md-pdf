@@ -807,8 +807,18 @@ def toml_value(value) -> str:
         return str(value)
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(v) for v in value) + "]"
-    text = str(value).replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{text}"'
+    return '"' + TOML_ESCAPE_RE.sub(_toml_escape, str(value)) + '"'
+
+
+# A TOML basic string may not hold `"`, `\`, or a control character other than tab.
+TOML_ESCAPE_RE = re.compile(r'["\\\x00-\x08\x0a-\x1f\x7f]')
+TOML_SHORT_ESCAPES = {'"': '\\"', "\\": "\\\\", "\b": "\\b", "\n": "\\n",
+                      "\f": "\\f", "\r": "\\r"}
+
+
+def _toml_escape(match: re.Match) -> str:
+    char = match.group(0)
+    return TOML_SHORT_ESCAPES.get(char) or f"\\u{ord(char):04X}"
 
 
 def dump_toml(cfg: dict, header: str = "") -> str:
