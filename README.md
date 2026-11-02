@@ -37,12 +37,19 @@ sudo pacman -S python pandoc python-weasyprint
 
 # macOS
 brew install python@3.12 pandoc weasyprint
+
+# Windows (winget / pip)
+winget install Python.Python.3.12 JohnMacFarlane.Pandoc
+pip install weasyprint
+# Note: On Windows, WeasyPrint requires GTK3 / GObject DLLs on your PATH (e.g. from MSYS2, Scoop, or Graphviz)
 ```
 
 Without `npx` or a browser everything else still works; only ` ```mermaid `
 blocks stop becoming figures.
 
 ### Install
+
+#### Linux / macOS
 
 ```bash
 git clone <this repo> ~/OS      # or just copy the folder
@@ -57,6 +64,21 @@ says so and prints the line to add to your `~/.zshrc`.
 ```bash
 ./install.sh --link        # symlink install: editing the repo takes effect immediately
 ./install.sh --uninstall   # remove
+```
+
+#### Windows (PowerShell)
+
+```powershell
+git clone <this repo> mdpdf
+cd mdpdf
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+```
+
+The Windows script checks dependencies, copies files to `%LOCALAPPDATA%\mdpdf` and creates command wrappers in `%LOCALAPPDATA%\Programs\mdpdf\bin` (`mdpdf.cmd` and `mdpdf.ps1`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Link        # symlink install
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall   # remove
 ```
 
 Re-running `install.sh` upgrades in place. It never touches `~/.cache/mdpdf/` or
