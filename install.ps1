@@ -20,10 +20,8 @@ if ($Uninstall) {
     exit 0
 }
 
-# 1. Verificar comandos obrigatorios
 $Missing = $false
 
-# Verifica executavel Python
 $PythonCmd = if (Get-Command "python" -ErrorAction SilentlyContinue) { "python" }
              elseif (Get-Command "python3" -ErrorAction SilentlyContinue) { "python3" }
              elseif (Get-Command "py" -ErrorAction SilentlyContinue) { "py" }
@@ -46,7 +44,6 @@ if (-not (Get-Command "pandoc" -ErrorAction SilentlyContinue)) {
     $Missing = $true
 }
 
-# Verifica WeasyPrint via comando ou pacote Python com bibliotecas nativas
 $weasyCheck = "import os, sys; [os.add_dll_directory(p) for p in os.environ.get('PATH', '').split(';') if os.path.isdir(p)]; import weasyprint"
 
 if ($PythonCmd) {
@@ -61,7 +58,6 @@ if ($PythonCmd) {
     $Missing = $true
 }
 
-# 2. Recomendacoes opcionais (Mermaid)
 if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
     Warn "npx not found -- Mermaid diagrams will be skipped"
 }
@@ -96,7 +92,6 @@ Install what is missing and run again:
     exit 1
 }
 
-# 3. Copiar ou Linkar arquivos
 New-Item -ItemType Directory -Force -Path $Share | Out-Null
 New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 
@@ -117,20 +112,16 @@ if ($Link) {
     Say "-> $Share"
 }
 
-# 4. Criar wrappers executaveis no PATH (mdpdf.cmd e mdpdf.ps1)
 $MdpdfPy = Join-Path $Share "mdpdf.py"
 
-# Wrapper .cmd
 $CmdContent = "@echo off`r`n`"$PythonCmd`" `"$MdpdfPy`" %*"
 Set-Content -Path (Join-Path $Bin "mdpdf.cmd") -Value $CmdContent -Encoding ASCII
 
-# Wrapper .ps1
 $Ps1Content = "& `"$PythonCmd`" `"$MdpdfPy`" @args"
 Set-Content -Path (Join-Path $Bin "mdpdf.ps1") -Value $Ps1Content -Encoding UTF8
 
 Say "-> $Bin\mdpdf.cmd"
 
-# 5. Verificar e sugerir PATH
 $CurrentPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $PathEntries = if ($CurrentPath) { $CurrentPath -split ';' } else { @() }
 
