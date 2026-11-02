@@ -5,8 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Repository root is the parent directory of this script
-$Src = Split-Path -Parent $PSScriptRoot
+$Src = $PSScriptRoot
 $AppData = [Environment]::GetFolderPath("LocalApplicationData")
 $Share = Join-Path $AppData "mdpdf"
 $Bin = Join-Path $AppData "Programs\mdpdf\bin"

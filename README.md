@@ -71,14 +71,14 @@ says so and prints the line to add to your `~/.zshrc`.
 ```powershell
 git clone <this repo> mdpdf
 cd mdpdf
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 The Windows script checks dependencies, copies files to `%LOCALAPPDATA%\mdpdf` and creates command wrappers in `%LOCALAPPDATA%\Programs\mdpdf\bin` (`mdpdf.cmd` and `mdpdf.ps1`).
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Link        # symlink install
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall   # remove
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Link        # symlink install
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall   # remove
 ```
 
 Re-running `install.sh` upgrades in place. It never touches `~/.cache/mdpdf/` or
