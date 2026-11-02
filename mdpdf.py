@@ -25,8 +25,17 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import os
 from html import escape, unescape
 from pathlib import Path
+
+if sys.platform == "win32":
+    for _path_dir in os.environ.get("PATH", "").split(os.pathsep):
+        if _path_dir and Path(_path_dir).is_dir():
+            try:
+                os.add_dll_directory(_path_dir)
+            except (OSError, AttributeError):
+                pass
 
 HOME = Path(__file__).resolve().parent
 THEMES = HOME / "themes"
@@ -38,6 +47,15 @@ BROWSER_CANDIDATES = [
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
 ]
+
+if sys.platform == "win32":
+    for _env_var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        _base = os.environ.get(_env_var)
+        if _base:
+            BROWSER_CANDIDATES.extend([
+                str(Path(_base) / "Microsoft" / "Edge" / "Application" / "msedge.exe"),
+                str(Path(_base) / "Google" / "Chrome" / "Application" / "chrome.exe"),
+            ])
 
 DEFAULTS: dict = {
     "theme": "plain",
@@ -527,8 +545,9 @@ def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
             src = cache / f"diagram-{idx}-{digest}.mmd"
             src.write_text(source, encoding="utf-8")
             print(f"  · rendering diagram {idx} …", file=sys.stderr)
+            npx_cmd = shutil.which("npx") or "npx"
             subprocess.run(
-                ["npx", "-y", "@mermaid-js/mermaid-cli",
+                [npx_cmd, "-y", "@mermaid-js/mermaid-cli",
                  "-i", str(src), "-o", str(svg),
                  "-p", str(puppeteer_cfg),
                  "-c", str(mermaid_cfg),
@@ -768,11 +787,16 @@ def cmd_build(args: argparse.Namespace) -> int:
     html_path.write_text(html, encoding="utf-8")
 
     print(f"→ printing {out_path.name}", file=sys.stderr)
-    subprocess.run(
-        ["weasyprint", "-e", "utf-8", "-u", md_path.parent.as_uri() + "/",
-         str(html_path), str(out_path)],
-        check=True,
-    )
+    try:
+        from weasyprint import HTML
+        HTML(filename=str(html_path), base_url=md_path.parent.as_uri() + "/").write_pdf(str(out_path))
+    except ImportError:
+        weasy_bin = shutil.which("weasyprint") or "weasyprint"
+        subprocess.run(
+            [weasy_bin, "-e", "utf-8", "-u", md_path.parent.as_uri() + "/",
+             str(html_path), str(out_path)],
+            check=True,
+        )
 
     if args.keep_html:
         print(f"  html at {html_path}", file=sys.stderr)
