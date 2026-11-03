@@ -401,6 +401,32 @@ figure.figure--diagram img {
   object-fit: contain;
 }
 
+/* LaTeX math typeset by MathJax as SVG. The glyphs use currentColor, so a
+   formula takes the colour of the text around it; a display equation wider
+   than the text column shrinks to fit instead of running into the margin. */
+.math--inline svg { overflow: visible; }
+
+.math--display {
+  display: block;
+  margin: 3mm 0;
+  text-align: center;
+  break-inside: avoid;
+}
+
+.math--display svg {
+  max-width: 100%;
+  height: auto;
+}
+
+code.math--error {
+  color: var(--ink-soft);
+}
+
+/* A heading with a formula is labelled in the PDF outline with its TeX. */
+[data-bookmark] {
+  bookmark-label: attr(data-bookmark);
+}
+
 figcaption {
   font-size: 8pt;
   color: var(--ink-muted);

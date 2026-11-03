@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -32,6 +33,7 @@ from urllib.parse import unquote
 HOME = Path(__file__).resolve().parent
 THEMES = HOME / "themes"
 CACHE_ROOT = Path.home() / ".cache" / "mdpdf"
+MATHJAX_DIR = CACHE_ROOT / "mathjax"
 
 BROWSER_CANDIDATES = [
     "/usr/bin/microsoft-edge",
@@ -721,37 +723,236 @@ ALERT_TITLE_RE = re.compile(
 )
 
 
+# A code span (left alone), `\(…\)` inline math, or a `\[…\]` block that opens
+# its own line. A bracket pair inside a sentence, such as `\[1\]`, is an
+# escaped literal in Markdown, so only the line-opening form counts as math.
+# Inline math stays inside its paragraph and never crosses a backtick, so a
+# stray `\(` cannot pair with a `\)` paragraphs away or inside a code span.
+BACKSLASH_MATH_RE = re.compile(
+    r"(?<!`)(?P<ticks>`+)(?!`).+?(?<!`)(?P=ticks)(?!`)"
+    r"|\\\((?P<inline>(?:(?!\n[ \t]*\n)[^`])+?)\\\)"
+    r"|^(?P<indent>[ \t>]*)\\\[(?P<display>[\s\S]+?)\\\][ \t]*$",
+    re.M,
+)
+
+
+def normalize_backslash_math(text: str) -> str:
+    """Turn the LaTeX delimiters pandoc's gfm reader ignores into dollars."""
+    def convert(m: re.Match) -> str:
+        if m["inline"] is not None:
+            return f"${m['inline'].strip()}$"
+        if m["display"] is not None:
+            return f"{m['indent']}$${m['display'].strip()}$$"
+        return m.group(0)
+
+    return BACKSLASH_MATH_RE.sub(convert, text)
+
+
 def preprocess_markdown(md: str, cfg: dict) -> str:
     """Rewrite the syntax pandoc does not know into syntax it does.
 
     GitHub alerts take no title, so `> [!NOTE] Custom title` would fall back to
     a plain quote. The title moves to its own marked paragraph inside the
-    alert, where postprocess() picks it up. Fenced code is left verbatim.
+    alert, where postprocess() picks it up. `\\(…\\)` and `\\[…\\]` math becomes
+    `$…$` and `$$…$$`. Fenced code and code spans are left verbatim.
     """
-    def titles(text: str) -> str:
-        return ALERT_TITLE_RE.sub(
+    def rewrite(text: str) -> str:
+        text = ALERT_TITLE_RE.sub(
             lambda m: (f"{m['quote']}[!{m['kind'].upper()}]\n"
                        f"{m['quote']}<span class=\"alert-title\">{m['title']}</span>\n"
                        f"{m['quote'].rstrip()}"),
             text,
         )
+        return normalize_backslash_math(text)
 
     out: list[str] = []
     last = 0
     for fence in FENCE_RE.finditer(md):
-        out.append(titles(md[last:fence.start()]))
+        out.append(rewrite(md[last:fence.start()]))
         out.append(fence.group(0))
         last = fence.end()
-    out.append(titles(md[last:]))
+    out.append(rewrite(md[last:]))
     return "".join(out)
 
 
 def markdown_to_html(md: str) -> str:
+    # --mathjax keeps each formula's TeX source in its span, for render_math().
     result = subprocess.run(
-        ["pandoc", "-f", "gfm+raw_html+fenced_divs", "-t", "html5", "--wrap=none"],
+        ["pandoc", "-f", "gfm+raw_html+fenced_divs", "-t", "html5", "--wrap=none",
+         "--mathjax"],
         input=md, text=True, capture_output=True, check=True,
     )
     return result.stdout
+
+
+MATHJAX_VERSION = "3.2.2"
+MATHJAX_INSTALL_TIMEOUT = 300   # seconds for the one-time npm install
+MATHJAX_RENDER_TIMEOUT = 120    # seconds for one batch of formulas
+MATHJAX_SCRIPT = r"""
+const {mathjax} = require('mathjax-full/js/mathjax.js');
+const {TeX} = require('mathjax-full/js/input/tex.js');
+const {SVG} = require('mathjax-full/js/output/svg.js');
+const {liteAdaptor} = require('mathjax-full/js/adaptors/liteAdaptor.js');
+const {RegisterHTMLHandler} = require('mathjax-full/js/handlers/html.js');
+const {AllPackages} = require('mathjax-full/js/input/tex/AllPackages.js');
+const adaptor = liteAdaptor();
+RegisterHTMLHandler(adaptor);
+const doc = mathjax.document('', {
+  InputJax: new TeX({
+    packages: AllPackages.filter(p => p !== 'bussproofs'),
+    formatError: (jax, err) => { throw err; },
+  }),
+  OutputJax: new SVG({fontCache: 'none'}),
+});
+let input = '';
+process.stdin.on('data', d => input += d).on('end', () => {
+  const out = JSON.parse(input).map(([tex, display]) => {
+    try { return adaptor.innerHTML(doc.convert(tex, {display})); }
+    catch (e) { process.stderr.write(`  ! ${tex}: ${e.message || e}\n`); return null; }
+  });
+  process.stdout.write(JSON.stringify(out));
+});
+"""
+
+MATH_SPAN_RE = re.compile(
+    r'<span class="math (?P<kind>inline|display)">'
+    r"\\[(\[](?P<tex>[\s\S]*?)\\[)\]]</span>"
+)
+
+
+def ensure_mathjax() -> Path | None:
+    """The MathJax renderer script, installing MathJax into the cache once."""
+    if not shutil.which("node"):
+        print("  ! node not found: formulas stay as TeX source", file=sys.stderr)
+        return None
+    package = MATHJAX_DIR / "node_modules" / "mathjax-full"
+    if not package.exists():
+        if not shutil.which("npm"):
+            print("  ! npm not found: formulas stay as TeX source", file=sys.stderr)
+            return None
+        print(f"  · installing MathJax {MATHJAX_VERSION} …", file=sys.stderr)
+        MATHJAX_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            done = subprocess.run(
+                ["npm", "install", "--silent", "--no-audit", "--no-fund",
+                 "--prefix", str(MATHJAX_DIR), f"mathjax-full@{MATHJAX_VERSION}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                timeout=MATHJAX_INSTALL_TIMEOUT,
+            )
+            reason = done.stderr.strip()[-600:] if done.returncode else ""
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            reason = str(exc)
+        if reason or not package.exists():
+            print(f"  ! MathJax install failed: formulas stay as TeX source\n{reason}",
+                  file=sys.stderr)
+            return None
+    script = MATHJAX_DIR / "tex2svg.js"
+    if not script.exists() or script.read_text(encoding="utf-8") != MATHJAX_SCRIPT:
+        script.write_text(MATHJAX_SCRIPT, encoding="utf-8")
+    return script
+
+
+def math_cache_path(cache: Path, tex: str, display: bool) -> Path:
+    """Where one formula's SVG is cached: keyed by source, mode and renderer."""
+    key = f"{MATHJAX_VERSION}\0{MATHJAX_SCRIPT}\0{int(display)}\0{tex}"
+    return cache / f"math-{hashlib.sha1(key.encode('utf-8')).hexdigest()[:16]}.svg"
+
+
+def cached_svg(path: Path) -> str | None:
+    """A cached SVG, or None when it is missing or not an SVG (a torn write)."""
+    try:
+        svg = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return svg if svg.startswith("<svg") and svg.rstrip().endswith("</svg>") else None
+
+
+def tex_to_svg(items: list[tuple[str, bool]], cache: Path) -> list[str | None]:
+    """Typeset each (tex, display) pair as SVG; None where it fails.
+
+    Each SVG is cached in `cache` under a digest of its source, so a rebuild
+    runs MathJax only for formulas that changed, and all of those in one call.
+    No failure of node or MathJax stops the build: those formulas stay TeX.
+    """
+    paths = [math_cache_path(cache, tex, display) for tex, display in items]
+    missing = sorted({item for item, path in zip(items, paths) if cached_svg(path) is None})
+    if missing and (script := ensure_mathjax()) is not None:
+        print(f"  · typesetting {len(missing)} formula(s) …", file=sys.stderr)
+        try:
+            done = subprocess.run(
+                ["node", str(script)],
+                input=json.dumps(missing), text=True, capture_output=True,
+                env={**os.environ, "NODE_PATH": str(MATHJAX_DIR / "node_modules")},
+                timeout=MATHJAX_RENDER_TIMEOUT,
+            )
+            sys.stderr.write(done.stderr)
+            svgs = json.loads(done.stdout) if done.returncode == 0 else []
+            if not isinstance(svgs, list):
+                raise ValueError("renderer output is not a list")
+        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            print(f"  ! MathJax failed ({exc}): formulas stay as TeX source", file=sys.stderr)
+            svgs = []
+        for (tex, display), svg in zip(missing, svgs):
+            if isinstance(svg, str) and svg:
+                math_cache_path(cache, tex, display).write_text(svg, encoding="utf-8")
+    return [cached_svg(path) for path in paths]
+
+
+TYPESET_MATH_RE = re.compile(
+    r'<span class="math math--(?:inline|display)" data-tex="(?P<tex>[^"]*)">'
+    r"<svg\b[\s\S]*?</svg></span>"
+)
+
+
+def math_as_tex(html: str) -> str:
+    """Typeset formulas back to their TeX, for places that print plain text.
+
+    The running header and the PDF outline read a heading as text, and an SVG
+    formula has none, so `2. A lei $E=mc^2$` would print as `2. A lei`.
+    """
+    return TYPESET_MATH_RE.sub(lambda m: m["tex"], html)
+
+
+HEADING_RE = re.compile(r"<(?P<tag>h[1-6])(?P<attrs>\b[^>]*)>(?P<body>[\s\S]*?)</(?P=tag)>")
+
+
+def bookmark_math_headings(html: str) -> str:
+    """Give each heading that holds a formula an outline label with its TeX.
+
+    Numbered sections already carry `data-section`; the rest would fall back
+    to WeasyPrint's text of the heading, which drops the SVG formula.
+    """
+    def label(m: re.Match) -> str:
+        if "data-section=" in m["attrs"] or not TYPESET_MATH_RE.search(m["body"]):
+            return m.group(0)
+        text = escape(visible_text(math_as_tex(m["body"])), quote=True)
+        return f'<{m["tag"]}{m["attrs"]} data-bookmark="{text}">{m["body"]}</{m["tag"]}>'
+
+    return HEADING_RE.sub(label, html)
+
+
+def render_math(html: str, cache: Path) -> str:
+    """Replace pandoc's math spans with typeset SVG, or the TeX if that fails."""
+    spans = list(MATH_SPAN_RE.finditer(html))
+    if not spans:
+        return html
+
+    items = [(unescape(m["tex"]).strip(), m["kind"] == "display") for m in spans]
+    svgs = tex_to_svg(items, cache)
+
+    out: list[str] = []
+    last = 0
+    for m, (tex, _), svg in zip(spans, items, svgs):
+        out.append(html[last:m.start()])
+        if svg:
+            out.append(f'<span class="math math--{m["kind"]}" data-tex="{escape(tex, quote=True)}">'
+                       f'{svg}</span>')
+        else:
+            mode = " math--display" if m["kind"] == "display" else ""
+            out.append(f'<code class="math{mode} math--error">{escape(tex)}</code>')
+        last = m.end()
+    out.append(html[last:])
+    return "".join(out)
 
 
 # A diagram already wrapped in its block, or a bare figure — matched in that
@@ -979,11 +1180,12 @@ def rich_blocks(html: str, cfg: dict) -> str:
 
     def number(m: re.Match) -> str:
         opening = add_class(f"<h2{m['attrs']}>", "section--numbered")
-        full = escape(f"{m['num']}{m['dot']} {visible_text(m['rest'])}", quote=True)
+        full = escape(f"{m['num']}{m['dot']} {visible_text(math_as_tex(m['rest']))}", quote=True)
         opening = opening[:-1] + f' data-section="{full}">'
         return f'{opening}<span class="section-num">{int(m["num"]):02d}</span> {m["rest"]}</h2>'
 
     html = SECTION_NUMBER_RE.sub(number, html)
+    html = bookmark_math_headings(html)
 
     html, _ = expand_containers(html, cfg)
     html = re.sub(r"<table\b[^>]*>[\s\S]*?</table>", lambda m: mark_table(m.group(0)), html)
@@ -1149,7 +1351,8 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     print("→ converting markdown", file=sys.stderr)
     css = build_stylesheet(cfg, theme_dir, cache)
-    body_html = postprocess(markdown_to_html(preprocess_markdown(body_md, cfg)), cfg)
+    body_html = postprocess(
+        render_math(markdown_to_html(preprocess_markdown(body_md, cfg)), cache), cfg)
     logo = resolve_logo(cfg, theme_dir, md_path.parent)
     html = compose(title, build_cover(title, meta, cfg, logo),
                    body_html, meta, cfg, css)
