@@ -6,3 +6,6 @@ __pycache__/
 # Local tooling: agent config and the code index. Never published.
 .claude/
 codegraph.db
+
+# Agent hook config written by the Darkagent bind. Local only.
+.codex/
