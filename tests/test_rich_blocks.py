@@ -186,6 +186,15 @@ class TableAndCodeTests(unittest.TestCase):
         self.assertEqual(3, html.count('<td class="num">'))
         self.assertIn("<th>Regra</th>", html)
 
+    def test_dash_placeholders_and_multipliers_keep_a_column_numeric(self) -> None:
+        html = build("| Medida | Razão |\n|---|---|\n| custo | 171× |\n| tempo | — |\n| manchete | 193,6x |\n")
+        self.assertEqual(3, html.count('<td class="num">'))
+        self.assertIn('<th class="num">Razão</th>', html)
+
+    def test_column_of_only_dashes_is_not_numeric(self) -> None:
+        html = build("| A |\n|---|\n| — |\n| - |\n")
+        self.assertNotIn('class="num"', html)
+
     def test_mixed_text_column_is_not_numeric(self) -> None:
         html = build("| A |\n|---|\n| 12 |\n| doze |\n")
         self.assertNotIn('class="num"', html)

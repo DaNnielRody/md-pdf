@@ -825,7 +825,9 @@ H3_RE = re.compile(r"<h3\b(?P<attrs>[^>]*)>")
 FIELD_LIST_RE = re.compile(r"<ul>\s*((?:<li><strong>[^<]+</strong>(?:(?!</li>)[\s\S])*</li>\s*)+)</ul>")
 FIELD_ITEM_RE = re.compile(r"<li><strong>(?P<label>[^<]+?):?</strong>:?\s*(?P<value>(?:(?!</li>)[\s\S])*)</li>")
 STAT_ITEM_RE = re.compile(r"<li>\s*<strong>(?P<value>(?:(?!</strong>)[\s\S])*)</strong>\s*(?P<label>(?:(?!</li>)[\s\S])*)</li>")
-NUMERIC_RE = re.compile(r"^[+\-−]?\s*(?:[A-Z]{0,3}\$\s*)?\d[\d.,   ]*+\s*%?$")
+NUMERIC_RE = re.compile(r"^[+\-−]?\s*(?:[A-Z]{0,3}\$\s*)?\d[\d.,   ]*+\s*[%×x]?$")
+# A cell holding only a dash marks a missing value, not text.
+PLACEHOLDER_RE = re.compile(r"^[—–-]$")
 CHIPS_RE = re.compile(r"<p>((?:<code>[^<]*</code>\s*){2,})</p>")
 LISTING_RE = re.compile(
     r'(?P<code><div class="sourceCode"[^>]*><pre\b(?:(?!</pre>)[\s\S])*</pre></div>'
@@ -929,8 +931,11 @@ def mark_table(table: str) -> str:
     for row in re.findall(r"<tr\b[^>]*>([\s\S]*?)</tr>", body.group(1)):
         for index, cell in enumerate(re.findall(r"<td\b[^>]*>([\s\S]*?)</td>", row)):
             columns.setdefault(index, []).append(visible_text(cell))
-    numeric = {i for i, cells in columns.items()
-               if any(cells) and all(NUMERIC_RE.match(c) for c in cells if c)}
+    numeric = set()
+    for i, cells in columns.items():
+        values = [c for c in cells if c and not PLACEHOLDER_RE.match(c)]
+        if values and all(NUMERIC_RE.match(c) for c in values):
+            numeric.add(i)
 
     def row(match: re.Match) -> str:
         index = -1

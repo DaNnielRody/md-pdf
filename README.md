@@ -309,7 +309,8 @@ that runs mdpdf; without it the diagram prints normally, unlinked, with a
 warning. It costs one extra layout pass, only for documents that use `click`.
 
 **Tables.** Columns whose filled cells are all numbers (`13.537,30`,
-`R$ 2.559,94`, `73,93%`) align right with tabular figures, and long content
+`R$ 2.559,94`, `73,93%`, `171×`) align right with tabular figures — a cell
+holding only a dash (`—`) counts as a missing value — and long content
 wraps inside the margin. Code in a header cell follows the header's ink, so it
 stays legible on the accent fill.
 
