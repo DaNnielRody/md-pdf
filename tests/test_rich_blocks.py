@@ -140,18 +140,14 @@ class StepTests(unittest.TestCase):
         ":::\n"
     )
 
-    def test_each_step_has_working_neighbour_links_and_no_dead_controls(self) -> None:
+    def test_steps_carry_no_in_page_navigation(self) -> None:
+        # Neighbouring steps sit on the same or the next page: links between
+        # them would only jump to what the reader already sees.
         html = build(self.MD)
         steps = re.findall(r'<article class="step"[\s\S]*?</article>', html)
         self.assertEqual(3, len(steps))
-
-        first, middle, last = steps
-        self.assertNotIn("step__prev", first)
-        self.assertIn('<a class="step__next" href="#recepção">Próxima ▶</a>', first)
-        self.assertIn('<a class="step__prev" href="#envio-autorizado">◀ Anterior</a>', middle)
-        self.assertIn('<a class="step__next" href="#classificação">Próxima ▶</a>', middle)
-        self.assertNotIn("step__next", last)
-        self.assertIn('<span class="step__count">2 de 3</span>', middle)
+        for name in ("step__prev", "step__next", "step__count", "step__nav", "step__gap"):
+            self.assertNotIn(name, html)
 
     def test_step_links_back_to_the_diagram_above(self) -> None:
         html = build(self.MD)
@@ -160,7 +156,7 @@ class StepTests(unittest.TestCase):
     def test_every_step_target_exists(self) -> None:
         html = build(self.MD)
         ids = set(re.findall(r'\bid="([^"]+)"', html))
-        for target in re.findall(r'class="step__(?:prev|next|back)" href="#([^"]+)"', html):
+        for target in re.findall(r'class="step__back" href="#([^"]+)"', html):
             self.assertIn(target, ids)
 
     def test_eyebrow_splits_category_and_badge(self) -> None:

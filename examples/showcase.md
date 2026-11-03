@@ -130,8 +130,8 @@ def valor_do_periodo(linha, base):
 
 ## 5. Diagrama clicável
 
-Clique numa caixa do diagrama para ir à etapa correspondente. Cada etapa tem
-links para a anterior, a próxima e de volta ao diagrama:
+Clique numa caixa do diagrama para ir à etapa correspondente. Cada etapa tem um
+link de volta ao diagrama:
 
 ```mermaid
 flowchart TD

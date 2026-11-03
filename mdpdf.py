@@ -60,10 +60,7 @@ DEFAULTS: dict = {
     "cover_stamp_field": "classificação",
     "alert_labels": {"note": "Nota", "tip": "Dica", "important": "Importante",
                      "warning": "Atenção", "caution": "Cuidado"},
-    "step_prev_label": "◀ Anterior",
-    "step_next_label": "Próxima ▶",
     "step_back_label": "↑ Voltar ao diagrama",
-    "step_count_label": "{n} de {total}",
     "colors": {},
     "fonts": [],
     "mermaid": {},
@@ -892,33 +889,20 @@ def build_container(kind: str, inner: str, back: str | None, cfg: dict) -> str:
         )
         return preamble + f'<div class="{classes}">{body}</div>'
 
-    # steps: cards chained by working links; a missing neighbour prints nothing.
-    ids = []
-    for index, (_, card) in enumerate(cards, start=1):
-        found = re.search(r'\bid="([^"]+)"', H3_RE.search(card).group(0))
-        ids.append(found.group(1) if found else f"step-{index}")
-    total = len(cards)
+    # steps: each card keeps an anchor for diagram links and a way back to the
+    # diagram. No previous/next links: neighbouring steps are already in view.
     out = []
-    for index, (eyebrow, card) in enumerate(cards):
+    for index, (eyebrow, card) in enumerate(cards, start=1):
         if not re.search(r'\bid="', H3_RE.search(card).group(0)):
-            card = H3_RE.sub(lambda m: f'<h3 id="{ids[index]}"{m["attrs"]}>', card, count=1)
+            card = H3_RE.sub(lambda m: f'<h3 id="step-{index}"{m["attrs"]}>', card, count=1)
         head = ""
         if eyebrow:
             category, _, badge = (part.strip() for part in eyebrow.partition("|"))
             badge_html = f'<span class="step__badge">{badge}</span>' if badge else ""
             head = f'<p class="step__eyebrow"><span>{category}</span>{badge_html}</p>'
-        prev = (f'<a class="step__prev" href="#{ids[index - 1]}">{escape(cfg["step_prev_label"])}</a>'
-                if index > 0 else '<span class="step__gap"></span>')
-        nxt = (f'<a class="step__next" href="#{ids[index + 1]}">{escape(cfg["step_next_label"])}</a>'
-               if index + 1 < total else '<span class="step__gap"></span>')
-        count = escape(cfg["step_count_label"].format(n=index + 1, total=total))
         back_html = (f'<a class="step__back" href="#{back}">{escape(cfg["step_back_label"])}</a>'
                      if back else "")
-        out.append(
-            f'<article class="step">{head}{field_rows(card)}'
-            f'<nav class="step__nav">{prev}<span class="step__count">{count}</span>{nxt}</nav>'
-            f"{back_html}</article>"
-        )
+        out.append(f'<article class="step">{head}{field_rows(card)}{back_html}</article>')
     return preamble + '<div class="step-list">' + "".join(out) + "</div>"
 
 

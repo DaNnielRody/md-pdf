@@ -622,8 +622,7 @@ ul.fields > li {
   line-height: 1.1;
 }
 
-/* Step cards: every link in the nav reaches a real destination; a missing
-   neighbour is an empty gap, never a dead button. */
+/* Step cards: an anchor target for the diagram and a link back to it. */
 .step-list { margin: 4mm 0 6mm; }
 .step { margin-bottom: 4mm; }
 .step__eyebrow {
@@ -634,28 +633,12 @@ ul.fields > li {
   margin-bottom: 2.5mm;
 }
 .step__badge { color: var(--ink-muted); }
-.step__nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 0.4pt solid var(--hairline);
-  margin-top: 3mm;
-  padding-top: 2mm;
-  font-size: 8pt;
-}
-.step__prev, .step__next {
-  display: block;
-  border: 0.5pt solid var(--hairline);
-  border-radius: 1mm;
-  padding: 1mm 2.5mm;
-  color: var(--ink);
-}
-.step__gap { width: 20mm; }
-.step__count { font-family: var(--mono); font-size: 7.5pt; color: var(--ink-muted); }
 .step__back {
   display: block;
-  margin-top: 1.5mm;
-  font-size: 7.5pt;
+  border-top: 0.4pt solid var(--hairline);
+  margin-top: 3mm;
+  padding-top: 1.5mm;
+  font-size: 8pt;
   text-align: right;
 }
 

@@ -284,12 +284,13 @@ Text, lists, code…
 | `::: cards` | grid with a coloured top rule; 2 or 4 cards → two columns, 3 → three |
 | `::: compare` | two side-by-side panels |
 | `::: stats` | a list of `- **3** label` items becomes a strip of figures |
-| `::: steps` | one card per step, with working ◀ Previous / Next ▶ links and a link back to the diagram above |
+| `::: steps` | one card per step, each a link target for the diagram and with a link back to it |
 
 Inside cards and steps, a list whose every item starts with a bold label
 (`- **In:** …`) prints as label / value rows. In steps, `##### Category | Badge`
-puts the badge on the right of the eyebrow. The first step has no Previous and
-the last no Next: a control with no destination is never printed.
+puts the badge on the right of the eyebrow. Steps carry no previous/next links:
+neighbouring steps are already on the same or the next page, so such links only
+jump to what the reader already sees.
 
 **Clickable diagrams.** Mermaid's own `click` directive turns a node into a
 real PDF link — point it at a heading, typically a step:
@@ -532,9 +533,7 @@ The pipeline looks for a few labels in the document. All configurable in
 | `cover_kind_field` | `documento` | field describing the nature of the document |
 | `cover_stamp_field` | `classificação` | field that becomes the cover stamp |
 | `alert_labels` | `Nota`, `Dica`, `Importante`, `Atenção`, `Cuidado` | default callout labels (table keyed by `note`, `tip`, `important`, `warning`, `caution`) |
-| `step_prev_label` / `step_next_label` | `◀ Anterior` / `Próxima ▶` | step navigation links |
 | `step_back_label` | `↑ Voltar ao diagrama` | link from a step back to its diagram |
-| `step_count_label` | `{n} de {total}` | step position |
 
 For an English document, set them in `mdpdf.toml`:
 
@@ -545,10 +544,7 @@ figure_label = "Figure"
 cover_subtitle_field = "product"
 cover_kind_field = "document"
 cover_stamp_field = "classification"
-step_prev_label = "◀ Previous"
-step_next_label = "Next ▶"
 step_back_label = "↑ Back to diagram"
-step_count_label = "{n} of {total}"
 
 [alert_labels]
 note = "Note"

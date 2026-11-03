@@ -22,7 +22,8 @@ are embedded as `<img>`, where links are inert.
 7. Paragraphs made only of inline code render as chips.
 8. An italic-only paragraph right after a code block becomes its caption.
 9. Mermaid `click X href "#id"` turns the node into a working PDF link; `::: steps`
-   cards get working Previous / Next / Back-to-diagram links.
+   cards are its targets and link back to the diagram (no previous/next: neighbours
+   are already in view — navigation only pays off between sections).
 10. Showcase Markdown exercising every feature.
 
 ## Out of scope
@@ -30,7 +31,7 @@ Interactive HTML output, PDF JavaScript, optional content groups, new dependenci
 
 ## Acceptance criteria
 - Every feature renders through the real pipeline (`mdpdf.py` → pandoc → WeasyPrint).
-- A clicked hotspot lands on the step card; the card's links land on neighbour cards and on the figure.
+- A clicked hotspot lands on the step card; the card's back link lands on the figure.
 - No navigation control without a destination is printed.
 - Wide tables and long code wrap inside the text block (no clipping).
 - Documents that use none of the new syntax keep page count and section-opening behaviour.
