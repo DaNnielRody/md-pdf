@@ -9,3 +9,6 @@ codegraph.db
 
 # Agent hook config written by the Darkagent bind. Local only.
 .codex/
+
+# Planning documents (PRDs, tickets). Local only.
+docs/prd/
