@@ -27,6 +27,7 @@ import sys
 import tomllib
 from html import escape, unescape
 from pathlib import Path
+from urllib.parse import unquote
 
 HOME = Path(__file__).resolve().parent
 THEMES = HOME / "themes"
@@ -57,6 +58,12 @@ DEFAULTS: dict = {
     "cover_subtitle_field": "produto",
     "cover_kind_field": "documento",
     "cover_stamp_field": "classificação",
+    "alert_labels": {"note": "Nota", "tip": "Dica", "important": "Importante",
+                     "warning": "Atenção", "caution": "Cuidado"},
+    "step_prev_label": "◀ Anterior",
+    "step_next_label": "Próxima ▶",
+    "step_back_label": "↑ Voltar ao diagrama",
+    "step_count_label": "{n} de {total}",
     "colors": {},
     "fonts": [],
     "mermaid": {},
@@ -483,6 +490,154 @@ def diagram_layout(svg: Path, cfg: dict, requested: str | None = None) -> str:
     return "inline" if width / height >= threshold else "page"
 
 
+CLICK_RE = re.compile(r'^[ \t]*click[ \t]+\S+[ \t]+(?:href[ \t]+)?"#', re.M)
+
+# Loaded into a headless browser next to the inline SVG: it lays the diagram
+# out at its viewBox size and writes each link's box, as fractions of the
+# diagram, into a <pre> that --dump-dom hands back.
+LINK_PROBE_JS = """
+const svg = document.querySelector('svg'), vb = svg.viewBox.baseVal;
+svg.setAttribute('width', vb.width); svg.setAttribute('height', vb.height);
+svg.style.maxWidth = 'none';
+const r = svg.getBoundingClientRect(), out = [];
+for (const a of svg.querySelectorAll('a')) {
+  const b = a.getBoundingClientRect();
+  out.push({href: a.getAttribute('xlink:href') || a.getAttribute('href') || '',
+            x: (b.left - r.left) / r.width, y: (b.top - r.top) / r.height,
+            w: b.width / r.width, h: b.height / r.height});
+}
+const pre = document.createElement('pre');
+pre.id = 'mdpdf-links'; pre.textContent = JSON.stringify(out);
+document.body.appendChild(pre);
+"""
+
+
+def svg_ratio(svg: Path) -> float | None:
+    """Width / height of the SVG viewBox."""
+    try:
+        tag = SVG_TAG_RE.search(svg.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    box = re.search(r'viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"', tag.group(0) if tag else "")
+    if not box or float(box.group(2)) <= 0:
+        return None
+    return float(box.group(1)) / float(box.group(2))
+
+
+def measure_svg_links(svg: Path, browser: str | None) -> list[dict] | None:
+    """Ask a headless browser where each link of the diagram is drawn."""
+    if not browser:
+        return None
+    content = re.sub(r"<\?xml[^>]*\?>", "", svg.read_text(encoding="utf-8"))
+    probe = svg.with_suffix(".links.html")
+    probe.write_text(
+        f'<!doctype html><html><body style="margin:0">{content}'
+        f"<script>{LINK_PROBE_JS}</script></body></html>",
+        encoding="utf-8",
+    )
+    try:
+        result = subprocess.run(
+            [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
+             "--dump-dom", probe.as_uri()],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    finally:
+        probe.unlink(missing_ok=True)
+    found = re.search(r'<pre id="mdpdf-links">([^<]*)</pre>', result.stdout)
+    return json.loads(unescape(found.group(1))) if found else None
+
+
+def diagram_hotspots(svg: Path, source: str, browser: str | None) -> str:
+    """Hidden anchors, one per linked node, placed later by place_diagram_hotspots().
+
+    The measured map is cached next to the SVG, keyed by the same digest, so a
+    rebuild with unchanged diagrams opens no browser.
+    """
+    cached = svg.with_suffix(".links.json")
+    try:
+        links = json.loads(cached.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        links = measure_svg_links(svg, browser)
+        if links is None:
+            print(f"  ! could not measure the links of {svg.name}: "
+                  "its nodes will not be clickable", file=sys.stderr)
+            return ""
+        cached.write_text(json.dumps(links), encoding="utf-8")
+
+    return "".join(
+        f'<a class="diagram-hotspot" href="{escape(unquote(link["href"]))}" '
+        f'data-box="{link["x"]:.5g} {link["y"]:.5g} {link["w"]:.5g} {link["h"]:.5g}"></a>'
+        for link in links
+        if str(link.get("href", "")).startswith("#")
+    )
+
+
+def place_diagram_hotspots(html: str, base_url: str) -> str:
+    """Position each hidden diagram anchor over the node it belongs to.
+
+    WeasyPrint keeps no links inside an SVG drawn through <img>, and a
+    `contain`-fitted image may be letterboxed inside its box, which CSS alone
+    cannot account for. So the document is laid out once, the drawn image
+    rectangle of every linked figure is read from the layout, and the anchors
+    get absolute pixel boxes relative to their figure. They are out of flow,
+    so the second layout — the real print — is identical to the first.
+    """
+    if 'class="diagram-hotspot"' not in html:
+        return html
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        print("  ! weasyprint is not importable from this Python: "
+              "diagram nodes will not be clickable", file=sys.stderr)
+        return html
+
+    figures = {m.group(1) for m in re.finditer(
+        r'<figure\b[^>]*\bid="(figura-\d+)"[^>]*\bdata-ratio="', html)}
+    geometry: dict[str, tuple[float, float, float, float]] = {}
+
+    def walk(box, figure=None):
+        element = getattr(box, "element", None)
+        tag = getattr(box, "element_tag", None)
+        if tag == "figure" and element is not None and element.get("id") in figures:
+            figure = box
+        elif tag == "img" and figure is not None:
+            key = figure.element.get("id")
+            if key not in geometry:
+                ratio = float(figure.element.get("data-ratio"))
+                width, height = box.width, box.height
+                drawn_w, drawn_h = min(width, height * ratio), min(height, width / ratio)
+                geometry[key] = (
+                    box.content_box_x() - figure.padding_box_x() + (width - drawn_w) / 2,
+                    box.content_box_y() - figure.padding_box_y() + (height - drawn_h) / 2,
+                    drawn_w, drawn_h,
+                )
+        for child in getattr(box, "children", []):
+            walk(child, figure)
+
+    for page in HTML(string=html, base_url=base_url).render().pages:
+        walk(page._page_box)
+
+    def place(figure: re.Match) -> str:
+        key = FIGURE_ID_RE.match(figure.group(0)).group(1)
+        if key not in geometry:
+            return figure.group(0)
+        left, top, width, height = geometry[key]
+
+        def anchor(a: re.Match) -> str:
+            x, y, w, h = (float(v) for v in a.group(2).split())
+            style = (f"left:{left + x * width:.2f}px;top:{top + y * height:.2f}px;"
+                     f"width:{w * width:.2f}px;height:{h * height:.2f}px")
+            return (f'<a class="diagram-hotspot diagram-hotspot--placed"{a.group(1)}'
+                    f'data-box="{a.group(2)}" style="{style}"></a>')
+
+        return re.sub(r'<a class="diagram-hotspot"( href="[^"]*" )data-box="([^"]*)"></a>',
+                      anchor, figure.group(0))
+
+    return re.sub(r'<figure\b[^>]*\bdata-ratio="[^>]*>[\s\S]*?</figure>', place, html)
+
+
 def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
     blocks = list(MERMAID_RE.finditer(md))
     if not blocks:
@@ -545,10 +700,13 @@ def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
         caption = headings[-1][1] if headings else "Diagrama"
         layout = diagram_layout(svg, cfg, block.group("layout"))
         layout_class = "diagram-inline" if layout == "inline" else "diagram-page"
+        hotspots = diagram_hotspots(svg, source, browser) if CLICK_RE.search(source) else ""
+        ratio = svg_ratio(svg) if hotspots else None
+        ratio_attr = f' data-ratio="{ratio:.6g}"' if ratio else ""
 
         out.append(
-            f'<figure class="figure--diagram {layout_class}">'
-            f'<img src="{svg.as_uri()}" alt="{escape(caption)}">'
+            f'<figure class="figure--diagram {layout_class}" id="figura-{idx}"{ratio_attr}>'
+            f'<img src="{svg.as_uri()}" alt="{escape(caption)}">{hotspots}'
             f'<figcaption>{escape(cfg["figure_label"])} {idx} — {escape(caption)}</figcaption>'
             "</figure>"
         )
@@ -558,9 +716,42 @@ def render_mermaid(md: str, cfg: dict, theme_dir: Path, cache: Path) -> str:
     return "".join(out)
 
 
+FENCE_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?^(?P=fence)[ \t]*$", re.M)
+ALERT_TITLE_RE = re.compile(
+    r"^(?P<quote>[ \t]{0,3}>[ \t]?)\[!(?P<kind>NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]"
+    r"[ \t]+(?P<title>\S.*?)[ \t]*$",
+    re.M | re.I,
+)
+
+
+def preprocess_markdown(md: str, cfg: dict) -> str:
+    """Rewrite the syntax pandoc does not know into syntax it does.
+
+    GitHub alerts take no title, so `> [!NOTE] Custom title` would fall back to
+    a plain quote. The title moves to its own marked paragraph inside the
+    alert, where postprocess() picks it up. Fenced code is left verbatim.
+    """
+    def titles(text: str) -> str:
+        return ALERT_TITLE_RE.sub(
+            lambda m: (f"{m['quote']}[!{m['kind'].upper()}]\n"
+                       f"{m['quote']}<span class=\"alert-title\">{m['title']}</span>\n"
+                       f"{m['quote'].rstrip()}"),
+            text,
+        )
+
+    out: list[str] = []
+    last = 0
+    for fence in FENCE_RE.finditer(md):
+        out.append(titles(md[last:fence.start()]))
+        out.append(fence.group(0))
+        last = fence.end()
+    out.append(titles(md[last:]))
+    return "".join(out)
+
+
 def markdown_to_html(md: str) -> str:
     result = subprocess.run(
-        ["pandoc", "-f", "gfm+raw_html", "-t", "html5", "--wrap=none"],
+        ["pandoc", "-f", "gfm+raw_html+fenced_divs", "-t", "html5", "--wrap=none"],
         input=md, text=True, capture_output=True, check=True,
     )
     return result.stdout
@@ -586,6 +777,239 @@ def visible_text(html: str) -> str:
     )
 
 
+def class_value(tag: str) -> str | None:
+    """Read the value of a quoted class attribute, if there is one."""
+    match = re.search(r'(?<!\S)class\s*=\s*(["\'])(.*?)\1', tag, re.I | re.S)
+    return match.group(2) if match else None
+
+
+def add_class(tag: str, name: str) -> str:
+    """Append a real class without touching data-class/aria-class."""
+    classes = class_value(tag)
+    if classes is not None:
+        if name in classes.split():
+            return tag
+        return re.sub(
+            r'((?<!\S)class\s*=\s*)(["\'])(.*?)\2',
+            lambda attr: f"{attr.group(1)}{attr.group(2)}{attr.group(3)} {name}{attr.group(2)}",
+            tag,
+            count=1,
+            flags=re.I | re.S,
+        )
+    return tag[:-1] + f' class="{name}">'
+
+
+def element_end(html: str, start: int, tag: str) -> int:
+    """End offset of the element opened at `start`, counting nested same tags."""
+    depth = 0
+    for match in re.compile(rf"<(/?){tag}\b[^>]*>", re.I).finditer(html, start):
+        depth += -1 if match.group(1) else 1
+        if depth == 0:
+            return match.end()
+    return len(html)
+
+
+ALERT_RE = re.compile(
+    r'<div class="(?P<kind>note|tip|important|warning|caution)">\s*'
+    r'<div class="title">\s*<p>[^<]*</p>\s*</div>'
+    r'(?:\s*<p><span class="alert-title">(?P<title>(?:(?!</span></p>)[\s\S])*)</span></p>)?'
+)
+SECTION_NUMBER_RE = re.compile(
+    r"<h2\b(?P<attrs>[^>]*)>\s*(?P<num>\d+)(?P<dot>\.?)\s+(?P<rest>(?:(?!</h2>)[\s\S])+)</h2>"
+)
+FIGURE_ID_RE = re.compile(r'<figure\b[^>]*\bid="(figura-\d+)"')
+CONTAINER_RE = re.compile(r'<(?P<tag>div|section)\b[^>]*\bclass="(?P<kind>cards|compare|stats|steps)"[^>]*>')
+CARD_START_RE = re.compile(r"(?:<h5\b[^>]*>(?:(?!</h5>)[\s\S])*</h5>\s*)?<h3\b")
+H5_RE = re.compile(r"\A\s*<h5\b[^>]*>(?P<text>(?:(?!</h5>)[\s\S])*)</h5>\s*")
+H3_RE = re.compile(r"<h3\b(?P<attrs>[^>]*)>")
+FIELD_LIST_RE = re.compile(r"<ul>\s*((?:<li><strong>[^<]+</strong>(?:(?!</li>)[\s\S])*</li>\s*)+)</ul>")
+FIELD_ITEM_RE = re.compile(r"<li><strong>(?P<label>[^<]+?):?</strong>:?\s*(?P<value>(?:(?!</li>)[\s\S])*)</li>")
+STAT_ITEM_RE = re.compile(r"<li>\s*<strong>(?P<value>(?:(?!</strong>)[\s\S])*)</strong>\s*(?P<label>(?:(?!</li>)[\s\S])*)</li>")
+NUMERIC_RE = re.compile(r"^[+\-−]?\s*(?:[A-Z]{0,3}\$\s*)?\d[\d.,   ]*+\s*%?$")
+CODE_CELL_RE = re.compile(r"^(?:<code>[^<]*</code>\s*)+$")
+CHIPS_RE = re.compile(r"<p>((?:<code>[^<]*</code>\s*){2,})</p>")
+LISTING_RE = re.compile(
+    r'(?P<code><div class="sourceCode"[^>]*><pre\b(?:(?!</pre>)[\s\S])*</pre></div>'
+    r"|<pre\b(?:(?!</pre>)[\s\S])*</pre>)"
+    r"\s*<p><em>(?P<caption>(?:(?!</?em\b|</p>)[\s\S])*)</em></p>"
+)
+
+
+def field_rows(html: str) -> str:
+    """A list whose every item opens with a bold label reads as label/value rows."""
+    def rows(match: re.Match) -> str:
+        items = FIELD_ITEM_RE.findall(match.group(1))
+        if len(items) != len(re.findall(r"<li>", match.group(1))):
+            return match.group(0)
+        return '<ul class="fields">' + "".join(
+            f'<li><span class="fields__label">{label.strip()}</span>'
+            f'<span class="fields__value">{value.strip()}</span></li>'
+            for label, value in items
+        ) + "</ul>"
+    return FIELD_LIST_RE.sub(rows, html)
+
+
+def split_cards(inner: str) -> tuple[str, list[tuple[str, str]]]:
+    """Split a container body into (preamble, [(eyebrow, card html from h3)])."""
+    starts = [m.start() for m in CARD_START_RE.finditer(inner)]
+    if not starts:
+        return inner, []
+    cards = []
+    for begin, end in zip(starts, starts[1:] + [len(inner)]):
+        chunk = inner[begin:end].strip()
+        eyebrow = ""
+        if head := H5_RE.match(chunk):
+            eyebrow = head.group("text").strip()
+            chunk = chunk[head.end():]
+        cards.append((eyebrow, chunk))
+    return inner[:starts[0]].strip(), cards
+
+
+def build_container(kind: str, inner: str, back: str | None, cfg: dict) -> str:
+    preamble, cards = split_cards(inner)
+
+    if kind == "stats":
+        stats = STAT_ITEM_RE.findall(inner)
+        cells = "".join(
+            f'<div class="stat"><span class="stat__label">{label.strip()}</span>'
+            f'<span class="stat__value">{value.strip()}</span></div>'
+            for value, label in stats
+        )
+        return f'<div class="stats stats--{min(len(stats), 4)}">{cells}</div>'
+
+    if kind in ("cards", "compare"):
+        if kind == "compare":
+            classes = "cards cards--2 cards--compare"
+        else:
+            cols = 1 if len(cards) == 1 else 2 if len(cards) in (2, 4) else 3
+            classes = f"cards cards--{cols}"
+        body = "".join(
+            '<div class="card">'
+            + (f'<p class="card__eyebrow">{eyebrow}</p>' if eyebrow else "")
+            + field_rows(card) + "</div>"
+            for eyebrow, card in cards
+        )
+        return preamble + f'<div class="{classes}">{body}</div>'
+
+    # steps: cards chained by working links; a missing neighbour prints nothing.
+    ids = []
+    for index, (_, card) in enumerate(cards, start=1):
+        found = re.search(r'\bid="([^"]+)"', H3_RE.search(card).group(0))
+        ids.append(found.group(1) if found else f"step-{index}")
+    total = len(cards)
+    out = []
+    for index, (eyebrow, card) in enumerate(cards):
+        if not re.search(r'\bid="', H3_RE.search(card).group(0)):
+            card = H3_RE.sub(lambda m: f'<h3 id="{ids[index]}"{m["attrs"]}>', card, count=1)
+        head = ""
+        if eyebrow:
+            category, _, badge = (part.strip() for part in eyebrow.partition("|"))
+            badge_html = f'<span class="step__badge">{badge}</span>' if badge else ""
+            head = f'<p class="step__eyebrow"><span>{category}</span>{badge_html}</p>'
+        prev = (f'<a class="step__prev" href="#{ids[index - 1]}">{escape(cfg["step_prev_label"])}</a>'
+                if index > 0 else '<span class="step__gap"></span>')
+        nxt = (f'<a class="step__next" href="#{ids[index + 1]}">{escape(cfg["step_next_label"])}</a>'
+               if index + 1 < total else '<span class="step__gap"></span>')
+        count = escape(cfg["step_count_label"].format(n=index + 1, total=total))
+        back_html = (f'<a class="step__back" href="#{back}">{escape(cfg["step_back_label"])}</a>'
+                     if back else "")
+        out.append(
+            f'<article class="step">{head}{field_rows(card)}'
+            f'<nav class="step__nav">{prev}<span class="step__count">{count}</span>{nxt}</nav>'
+            f"{back_html}</article>"
+        )
+    return preamble + '<div class="step-list">' + "".join(out) + "</div>"
+
+
+def mark_table(table: str) -> str:
+    """Right-align numeric columns and set code-only cells as plain mono."""
+    body = re.search(r"<tbody>([\s\S]*?)</tbody>", table)
+    if not body:
+        return table
+    columns: dict[int, list[str]] = {}
+    for row in re.findall(r"<tr\b[^>]*>([\s\S]*?)</tr>", body.group(1)):
+        for index, cell in enumerate(re.findall(r"<td\b[^>]*>([\s\S]*?)</td>", row)):
+            columns.setdefault(index, []).append(visible_text(cell))
+    numeric = {i for i, cells in columns.items()
+               if any(cells) and all(NUMERIC_RE.match(c) for c in cells if c)}
+
+    def row(match: re.Match) -> str:
+        index = -1
+
+        def cell(c: re.Match) -> str:
+            nonlocal index
+            index += 1
+            opening = c.group(1)
+            if index in numeric:
+                opening = add_class(opening, "num")
+            if c.group(2) == "td" and CODE_CELL_RE.match(c.group(3).strip()):
+                opening = add_class(opening, "cell--code")
+            return opening + c.group(3) + f"</{c.group(2)}>"
+
+        return re.sub(r"(<(t[dh])\b[^>]*>)([\s\S]*?)</t[dh]>", cell, match.group(0))
+
+    return re.sub(r"<tr\b[^>]*>[\s\S]*?</tr>", row, table)
+
+
+def expand_containers(html: str, cfg: dict, back: str | None = None) -> tuple[str, str | None]:
+    """Replace every fenced-div container in one forward pass.
+
+    `back` is the id of the last diagram figure seen so far; built output is
+    expanded recursively so nested containers are handled in document order.
+    """
+    out: list[str] = []
+    pos = 0
+
+    def seen(segment: str) -> None:
+        nonlocal back
+        if figures := FIGURE_ID_RE.findall(segment):
+            back = figures[-1]
+        out.append(segment)
+
+    while (match := CONTAINER_RE.search(html, pos)) is not None:
+        seen(html[pos:match.start()])
+        end = element_end(html, match.start(), match["tag"])
+        inner = html[match.end():end - len(f"</{match['tag']}>")]
+        container_id = re.search(r'\bid="([^"]+)"', match.group(0))
+        if container_id and (head := re.search(r"<h[1-6]\b(?![^>]*\bid=)", inner)):
+            at = head.end()
+            inner = inner[:at] + f' id="{container_id.group(1)}"' + inner[at:]
+        built, back = expand_containers(build_container(match["kind"], inner, back, cfg), cfg, back)
+        out.append(built)
+        pos = end
+    seen(html[pos:])
+    return "".join(out), back
+
+
+def rich_blocks(html: str, cfg: dict) -> str:
+    """Turn the block vocabulary (alerts, containers, chips…) into print markup."""
+    labels = cfg["alert_labels"]
+    html = ALERT_RE.sub(
+        lambda m: (f'<div class="alert alert--{m["kind"]}"><p class="alert__title">'
+                   f'{m["title"].strip() if m["title"] else escape(labels.get(m["kind"], m["kind"]))}'
+                   "</p>"),
+        html,
+    )
+
+    def number(m: re.Match) -> str:
+        opening = add_class(f"<h2{m['attrs']}>", "section--numbered")
+        full = escape(f"{m['num']}{m['dot']} {visible_text(m['rest'])}", quote=True)
+        opening = opening[:-1] + f' data-section="{full}">'
+        return f'{opening}<span class="section-num">{int(m["num"]):02d}</span> {m["rest"]}</h2>'
+
+    html = SECTION_NUMBER_RE.sub(number, html)
+
+    html, _ = expand_containers(html, cfg)
+    html = re.sub(r"<table\b[^>]*>[\s\S]*?</table>", lambda m: mark_table(m.group(0)), html)
+    html = CHIPS_RE.sub(lambda m: f'<p class="chips">{m.group(1).strip()}</p>', html)
+    html = LISTING_RE.sub(
+        lambda m: (f'<figure class="listing">{m["code"]}'
+                   f'<figcaption>{m["caption"].strip()}</figcaption></figure>'),
+        html,
+    )
+    return html
+
+
 def postprocess(html: str, cfg: dict) -> str:
     """Mark the table of contents and turn images into captioned figures."""
     titles = "|".join(re.escape(t) for t in cfg["toc_titles"])
@@ -608,26 +1032,6 @@ def postprocess(html: str, cfg: dict) -> str:
         r'<table class="table--fields">\1',
         html,
     )
-
-    def class_value(tag: str) -> str | None:
-        """Read the value of a quoted class attribute, if there is one."""
-        match = re.search(r'(?<!\S)class\s*=\s*(["\'])(.*?)\1', tag, re.I | re.S)
-        return match.group(2) if match else None
-
-    def add_class(tag: str, name: str) -> str:
-        """Append a real class without touching data-class/aria-class."""
-        classes = class_value(tag)
-        if classes is not None:
-            if name in classes.split():
-                return tag
-            return re.sub(
-                r'((?<!\S)class\s*=\s*)(["\'])(.*?)\2',
-                lambda attr: f"{attr.group(1)}{attr.group(2)}{attr.group(3)} {name}{attr.group(2)}",
-                tag,
-                count=1,
-                flags=re.I | re.S,
-            )
-        return tag[:-1] + f' class="{name}">'
 
     def is_diagram_figure(tag: str) -> bool:
         classes = class_value(tag)
@@ -703,7 +1107,7 @@ def postprocess(html: str, cfg: dict) -> str:
     html = "".join(blocks)
 
     html = re.sub(r'<p>(<img src="[^"]*"[^>]*/?>)</p>', r"<figure>\1</figure>", html)
-    return html
+    return rich_blocks(html, cfg)
 
 
 def compose(title: str, cover: str, body: str, meta: list[tuple[str, str]],
@@ -759,10 +1163,11 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     print("→ converting markdown", file=sys.stderr)
     css = build_stylesheet(cfg, theme_dir, cache)
-    body_html = postprocess(markdown_to_html(body_md), cfg)
+    body_html = postprocess(markdown_to_html(preprocess_markdown(body_md, cfg)), cfg)
     logo = resolve_logo(cfg, theme_dir, md_path.parent)
     html = compose(title, build_cover(title, meta, cfg, logo),
                    body_html, meta, cfg, css)
+    html = place_diagram_hotspots(html, md_path.parent.as_uri() + "/")
 
     html_path = cache / "document.html"
     html_path.write_text(html, encoding="utf-8")
