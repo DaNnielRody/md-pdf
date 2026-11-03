@@ -826,7 +826,6 @@ FIELD_LIST_RE = re.compile(r"<ul>\s*((?:<li><strong>[^<]+</strong>(?:(?!</li>)[\
 FIELD_ITEM_RE = re.compile(r"<li><strong>(?P<label>[^<]+?):?</strong>:?\s*(?P<value>(?:(?!</li>)[\s\S])*)</li>")
 STAT_ITEM_RE = re.compile(r"<li>\s*<strong>(?P<value>(?:(?!</strong>)[\s\S])*)</strong>\s*(?P<label>(?:(?!</li>)[\s\S])*)</li>")
 NUMERIC_RE = re.compile(r"^[+\-−]?\s*(?:[A-Z]{0,3}\$\s*)?\d[\d.,   ]*+\s*%?$")
-CODE_CELL_RE = re.compile(r"^(?:<code>[^<]*</code>\s*)+$")
 CHIPS_RE = re.compile(r"<p>((?:<code>[^<]*</code>\s*){2,})</p>")
 LISTING_RE = re.compile(
     r'(?P<code><div class="sourceCode"[^>]*><pre\b(?:(?!</pre>)[\s\S])*</pre></div>'
@@ -922,7 +921,7 @@ def build_container(kind: str, inner: str, back: str | None, cfg: dict) -> str:
 
 
 def mark_table(table: str) -> str:
-    """Right-align numeric columns and set code-only cells as plain mono."""
+    """Right-align the columns whose every filled cell is a number."""
     body = re.search(r"<tbody>([\s\S]*?)</tbody>", table)
     if not body:
         return table
@@ -942,8 +941,6 @@ def mark_table(table: str) -> str:
             opening = c.group(1)
             if index in numeric:
                 opening = add_class(opening, "num")
-            if c.group(2) == "td" and CODE_CELL_RE.match(c.group(3).strip()):
-                opening = add_class(opening, "cell--code")
             return opening + c.group(3) + f"</{c.group(2)}>"
 
         return re.sub(r"(<(t[dh])\b[^>]*>)([\s\S]*?)</t[dh]>", cell, match.group(0))

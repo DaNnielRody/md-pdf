@@ -190,10 +190,6 @@ class TableAndCodeTests(unittest.TestCase):
         html = build("| A |\n|---|\n| 12 |\n| doze |\n")
         self.assertNotIn('class="num"', html)
 
-    def test_code_only_cell_is_marked(self) -> None:
-        html = build("| Cálculo |\n|---|\n| `6,35 × 403,14` |\n")
-        self.assertIn('<td class="cell--code"><code>', html)
-
     def test_paragraph_of_only_code_spans_becomes_chips(self) -> None:
         html = build("`Docling` `Camelot`\n\nTexto com `código` no meio.\n")
         self.assertIn('<p class="chips"><code>Docling</code> <code>Camelot</code></p>', html)

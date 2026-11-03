@@ -308,14 +308,16 @@ over the nodes. This needs the `weasyprint` module importable by the Python
 that runs mdpdf; without it the diagram prints normally, unlinked, with a
 warning. It costs one extra layout pass, only for documents that use `click`.
 
-**Technical tables.** Headers are small uppercase labels; columns whose cells
-are all numbers (`13.537,30`, `R$ 2.559,94`, `73,93%`) align right with
-tabular figures; a cell holding only code is set in mono without the code box.
-Long content wraps inside the margin.
+**Tables.** Columns whose filled cells are all numbers (`13.537,30`,
+`R$ 2.559,94`, `73,93%`) align right with tabular figures, and long content
+wraps inside the margin. Code in a header cell follows the header's ink, so it
+stays legible on the accent fill.
 
-**Tags and code captions.** A paragraph made only of code spans
-(`` `Docling` `Camelot` ``) prints as a row of tags. A paragraph entirely in
-italics right after a code block becomes its caption.
+**Tags and code captions — applied automatically.** A paragraph made only of
+two or more code spans (`` `Docling` `Camelot` ``) prints as a row of tags, and
+a paragraph entirely in italics right after a code block becomes its caption.
+Neither needs new syntax, so an existing document with such paragraphs changes
+look: add a word outside the code spans or the italics to keep the old one.
 
 > [!CAUTION]
 > With fenced divs enabled, a line made only of `:::` opens or closes a

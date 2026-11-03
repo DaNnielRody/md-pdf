@@ -99,10 +99,10 @@ E `::: compare` põe dois painéis lado a lado:
 
 ## 4. Tabelas técnicas, tags e código
 
-Colunas só com números são alinhadas à direita; células só com código saem em
-mono, sem a caixa do código. Tabelas largas quebram dentro da margem, sem cortar.
+Colunas só com números são alinhadas à direita, e tabelas largas quebram dentro
+da margem, sem cortar. Código no cabeçalho segue a cor do cabeçalho.
 
-| Regra | Confere | Cálculo do motor | BM017 informa |
+| Regra | Confere | Cálculo do motor | `BM017` informa |
 |---|---|---|---|
 | QTD-01a | anterior + atual = acumulada | `13.530,95 + 6,35 = 13.537,30` | 13.537,30 |
 | QTD-01b | contratada − acumulada = saldo | `18.311,40 − 13.537,30 = 4.774,10` | 4.774,10 |
