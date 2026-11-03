@@ -242,6 +242,85 @@ enough, and the result is a PDF set in tiny type from cover to back. `mdpdf`
 does not suffer from this because WeasyPrint paginates rather than scales, but
 if you keep both paths alive they will fight over the same output file. Pick one.
 
+### Blocks beyond plain Markdown
+
+Everything below stays valid Markdown; [`examples/showcase.md`](examples/showcase.md)
+uses every one of them — build it to see the result.
+
+**Numbered section openers.** A `##` whose title starts with a number
+(`## 3. Results`) prints the number as a small mono eyebrow (`03`) before the
+title, under a heavy rule. The running header and the PDF outline keep the full
+`3. Results`.
+
+**Callouts** use GitHub's alert syntax, so the file still renders on GitHub.
+The label follows `alert_labels`; text after the marker replaces it:
+
+```markdown
+> [!NOTE]
+> Plain note.
+
+> [!WARNING] If it goes wrong
+> Divergence blocks the dependent rules until review.
+```
+
+Kinds: `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`.
+
+**Containers** are pandoc fenced divs. Each `###` inside starts a card; an
+`#####` right above a `###` is that card's eyebrow:
+
+```markdown
+::: cards
+##### 1 · catalogue
+### What to check
+Text, lists, code…
+
+### How to check
+…
+:::
+```
+
+| container | result |
+|---|---|
+| `::: cards` | grid with a coloured top rule; 2 or 4 cards → two columns, 3 → three |
+| `::: compare` | two side-by-side panels |
+| `::: stats` | a list of `- **3** label` items becomes a strip of figures |
+| `::: steps` | one card per step, with working ◀ Previous / Next ▶ links and a link back to the diagram above |
+
+Inside cards and steps, a list whose every item starts with a bold label
+(`- **In:** …`) prints as label / value rows. In steps, `##### Category | Badge`
+puts the badge on the right of the eyebrow. The first step has no Previous and
+the last no Next: a control with no destination is never printed.
+
+**Clickable diagrams.** Mermaid's own `click` directive turns a node into a
+real PDF link — point it at a heading, typically a step:
+
+```mermaid
+flowchart TD
+  A[Upload] --> B[Intake]
+  click A href "#upload"
+  click B href "#intake"
+```
+
+WeasyPrint keeps no links inside an SVG image, so mdpdf asks the headless
+browser where each linked node is drawn (cached next to the SVG), lays the
+document out once to find where the image landed, and lays invisible links
+over the nodes. This needs the `weasyprint` module importable by the Python
+that runs mdpdf; without it the diagram prints normally, unlinked, with a
+warning. It costs one extra layout pass, only for documents that use `click`.
+
+**Technical tables.** Headers are small uppercase labels; columns whose cells
+are all numbers (`13.537,30`, `R$ 2.559,94`, `73,93%`) align right with
+tabular figures; a cell holding only code is set in mono without the code box.
+Long content wraps inside the margin.
+
+**Tags and code captions.** A paragraph made only of code spans
+(`` `Docling` `Camelot` ``) prints as a row of tags. A paragraph entirely in
+italics right after a code block becomes its caption.
+
+> [!CAUTION]
+> With fenced divs enabled, a line made only of `:::` opens or closes a
+> container. Escape it (`\:::`) if you need it literally.
+
 ---
 
 ## Per-folder configuration — `mdpdf.toml`
@@ -449,6 +528,10 @@ The pipeline looks for a few labels in the document. All configurable in
 | `cover_subtitle_field` | `produto` | header field that becomes the cover subtitle |
 | `cover_kind_field` | `documento` | field describing the nature of the document |
 | `cover_stamp_field` | `classificação` | field that becomes the cover stamp |
+| `alert_labels` | `Nota`, `Dica`, `Importante`, `Atenção`, `Cuidado` | default callout labels (table keyed by `note`, `tip`, `important`, `warning`, `caution`) |
+| `step_prev_label` / `step_next_label` | `◀ Anterior` / `Próxima ▶` | step navigation links |
+| `step_back_label` | `↑ Voltar ao diagrama` | link from a step back to its diagram |
+| `step_count_label` | `{n} de {total}` | step position |
 
 For an English document, set them in `mdpdf.toml`:
 
@@ -459,6 +542,17 @@ figure_label = "Figure"
 cover_subtitle_field = "product"
 cover_kind_field = "document"
 cover_stamp_field = "classification"
+step_prev_label = "◀ Previous"
+step_next_label = "Next ▶"
+step_back_label = "↑ Back to diagram"
+step_count_label = "{n} of {total}"
+
+[alert_labels]
+note = "Note"
+tip = "Tip"
+important = "Important"
+warning = "Warning"
+caution = "Caution"
 ```
 
 ---
