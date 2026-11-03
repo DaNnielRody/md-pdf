@@ -24,6 +24,7 @@ from a `DESIGN.md` (see [Design engine](#design-engine)).
 | `weasyprint` | HTML → PDF, pagination, page-number resolution | yes |
 | `npx` | fetches `@mermaid-js/mermaid-cli` on demand | diagrams only |
 | Chromium/Chrome/Edge | engine behind mermaid-cli | diagrams only |
+| `node` + `npm` | installs MathJax once into `~/.cache/mdpdf/mathjax/` | formulas only |
 
 ```bash
 # Debian / Ubuntu
@@ -40,7 +41,8 @@ brew install python@3.12 pandoc weasyprint
 ```
 
 Without `npx` or a browser everything else still works; only ` ```mermaid `
-blocks stop becoming figures.
+blocks stop becoming figures. Without `node`, LaTeX formulas print as their TeX
+source instead of typeset math.
 
 ### Install
 
@@ -232,6 +234,33 @@ flowchart TB
 ````
 
 The accepted overrides are `auto`, `page` and `inline`.
+
+### LaTeX formulas
+
+Formulas are typeset by MathJax as vector SVG, in the colour of the text around
+them. All four common delimiters work:
+
+```markdown
+Inline: $E = mc^2$ or \( a + b \).
+
+$$
+\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+$$
+
+\[
+A = \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}
+\]
+```
+
+A display equation wider than the text column shrinks to fit. Code spans and
+fenced code are never touched, and `\[1\]` inside a sentence stays a literal
+`[1]`: `\[…\]` counts as math only when it opens its own line. Amounts such as
+`R$ 10` are left alone, and a `\(` with no closing `\)` in the same paragraph
+stays text. A formula in a heading appears as its TeX in the running header
+and the PDF outline. A formula MathJax cannot parse is printed as its source
+and named on stderr. The first build that meets a formula installs MathJax
+(about 50 MB) into the cache; each formula's SVG is cached, so rebuilds only
+typeset what changed.
 
 ### A trap worth knowing about
 
