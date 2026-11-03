@@ -31,7 +31,8 @@ class MermaidLayoutTests(unittest.TestCase):
         self.assertRegex(
             rendered,
             r'<div class="diagram-block"><div class="diagram-block__lead">'
-            r'<h2 id="event-loop" class="section-title">4\. Event loop</h2>\s*</div>'
+            r'<h2 id="event-loop" class="section-title[^"]*"[^>]*>'
+            r'<span class="section-num">04</span> Event loop</h2>\s*</div>'
             r'<figure class="figure--diagram diagram-page">.*?</figure></div>',
         )
 
@@ -309,8 +310,8 @@ class MermaidLayoutTests(unittest.TestCase):
             pdf = work / "fixture.pdf"
             HTML(string=html, base_url=str(work)).write_pdf(pdf)
 
-            first_page = self._page_containing(pdf, "1. Primeira seção")
-            second_page = self._page_containing(pdf, "2. Segunda seção")
+            first_page = self._page_containing(pdf, "Primeira seção")
+            second_page = self._page_containing(pdf, "Segunda seção")
             figure_page = self._page_containing(pdf, "Figura 1")
 
             self.assertEqual(first_page + 1, second_page)

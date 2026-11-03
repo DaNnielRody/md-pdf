@@ -479,3 +479,202 @@ pre {
   break-inside: avoid;
 }
 pre code { background: none; border: none; padding: 0; }
+
+/* ── Rich print blocks ─────────────────────────────────────────────────── */
+
+/* Section opener: a heavy rule above, the section number as a small mono
+   eyebrow. The running header and the PDF outline keep the full numbered
+   title, read from data-section. */
+h2 {
+  border-bottom: none;
+  border-top: 1.6pt solid var(--accent);
+  padding: 4mm 0 0;
+}
+h2.section--numbered {
+  string-set: section-title attr(data-section);
+  bookmark-label: attr(data-section);
+}
+.section-num {
+  font-family: var(--mono);
+  font-size: 0.6em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-right: 2mm;
+  vertical-align: 0.18em;
+}
+
+/* Callouts: GFM alerts with a coloured left rule and an uppercase label. */
+.alert {
+  margin: 4mm 0;
+  padding: 2.6mm 4mm 2.8mm;
+  background: var(--paper-alt);
+  border-left: 2pt solid var(--alert-note, var(--accent-2-ink));
+  break-inside: avoid;
+}
+.alert > :last-child { margin-bottom: 0; }
+.alert__title {
+  font-family: var(--mono);
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 1mm;
+  text-align: left;
+  hyphens: none;
+}
+.alert--tip       { border-left-color: var(--alert-tip, #2f855a); }
+.alert--important { border-left-color: var(--alert-important, var(--accent)); }
+.alert--warning   { border-left-color: var(--alert-warning, #b7791f); }
+.alert--caution   { border-left-color: var(--alert-caution, #c53030); }
+
+/* Cards, comparison panels and step cards share one frame. */
+.cards {
+  display: grid;
+  gap: 4mm;
+  margin: 4mm 0 6mm;
+}
+.cards--1 { grid-template-columns: 1fr; }
+.cards--2 { grid-template-columns: 1fr 1fr; }
+.cards--3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.card, .step {
+  border: 0.5pt solid var(--hairline);
+  border-top: 1.8pt solid var(--accent);
+  padding: 3mm 3.5mm 3.2mm;
+  break-inside: avoid;
+  overflow-wrap: break-word;
+  font-size: 9pt;
+}
+.cards > .card:nth-child(3n + 2) { border-top-color: var(--accent-2); }
+.cards > .card:nth-child(3n + 3) { border-top-color: var(--accent-deep); }
+.cards--compare > .card { border-top-width: 2.4pt; }
+
+.card h3, .step h3 {
+  font-size: 10.5pt;
+  margin: 0 0 2mm;
+}
+.card p, .card li, .step p, .step li { text-align: left; hyphens: auto; }
+.card > :last-child { margin-bottom: 0; }
+
+.card__eyebrow, .step__eyebrow {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-2-ink);
+  margin: 0 0 1.5mm;
+  text-align: left;
+}
+
+/* A list whose items all start with a bold label: label / value rows. */
+ul.fields { list-style: none; padding-left: 0; margin: 2mm 0; }
+ul.fields > li {
+  display: flex;
+  gap: 3mm;
+  margin-bottom: 0.8mm;
+  text-align: left;
+}
+.fields__label {
+  flex: 0 0 18mm;
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding-top: 0.5mm;
+}
+.fields__value { flex: 1 1 auto; }
+
+/* KPI strip. */
+.stats {
+  display: grid;
+  border: 0.5pt solid var(--hairline);
+  margin: 4mm 0 6mm;
+  break-inside: avoid;
+}
+.stats--1 { grid-template-columns: 1fr; }
+.stats--2 { grid-template-columns: 1fr 1fr; }
+.stats--3 { grid-template-columns: 1fr 1fr 1fr; }
+.stats--4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.stat {
+  padding: 2.6mm 3.5mm;
+  border-left: 0.5pt solid var(--hairline);
+}
+.stat:first-child { border-left: none; }
+.stat__label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  line-height: 1.3;
+  hyphens: none;
+}
+.stat__value {
+  display: block;
+  font-size: 15pt;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 1mm;
+  line-height: 1.1;
+}
+
+/* Step cards: an anchor target for the diagram and a link back to it. */
+.step-list { margin: 4mm 0 6mm; }
+.step { margin-bottom: 4mm; }
+.step__eyebrow {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 0.4pt solid var(--hairline);
+  padding-bottom: 1.5mm;
+  margin-bottom: 2.5mm;
+}
+.step__badge { color: var(--ink-muted); }
+.step__back {
+  display: block;
+  border-top: 0.4pt solid var(--hairline);
+  margin-top: 3mm;
+  padding-top: 1.5mm;
+  font-size: 8pt;
+  text-align: right;
+}
+
+/* Diagram nodes linked with Mermaid `click … href`: invisible boxes laid
+   over the drawn node by place_diagram_hotspots(). */
+figure.figure--diagram { position: relative; }
+.diagram-hotspot { display: none; }
+.diagram-hotspot--placed { display: block; position: absolute; }
+
+/* Tables keep the theme's header fill and row tint; numeric columns align
+   on the right and long content wraps inside the margin. */
+td { overflow-wrap: break-word; }
+
+/* Code in a header cell: the body code box is a light pill, which on the
+   accent fill turned white text on white. Follow the header ink instead. */
+th code {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+th.num, td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A paragraph made only of code spans is a row of tags. */
+p.chips { text-align: left; line-height: 2; margin: 2mm 0; }
+p.chips code {
+  border: 0.6pt solid var(--hairline);
+  background: var(--paper);
+  padding: 0.8pt 3pt;
+  margin-right: 1mm;
+}
+
+/* Code listing with a caption beneath it. */
+figure.listing { text-align: left; margin: 4mm 0 6mm; }
+figure.listing pre { margin: 0; overflow-wrap: break-word; }
+figure.listing figcaption { text-align: left; margin-top: 1.5mm; }
