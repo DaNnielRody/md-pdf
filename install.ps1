@@ -13,9 +13,20 @@ $Bin = Join-Path $AppData "Programs\mdpdf\bin"
 function Say($msg)  { Write-Host $msg }
 function Warn($msg) { Write-Warning $msg }
 
+function Remove-DirectorySafely($target) {
+    if (Test-Path -LiteralPath $target) {
+        $item = Get-Item -LiteralPath $target -Force
+        if ($item.LinkType -or ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            Remove-Item -LiteralPath $target -Force
+        } else {
+            Remove-Item -LiteralPath $target -Recurse -Force
+        }
+    }
+}
+
 if ($Uninstall) {
-    if (Test-Path $Share) { Remove-Item -Recurse -Force $Share }
-    if (Test-Path $Bin) { Remove-Item -Recurse -Force $Bin }
+    Remove-DirectorySafely $Share
+    Remove-DirectorySafely $Bin
     Say "v mdpdf removed from $Share and $Bin"
     exit 0
 }
@@ -44,15 +55,30 @@ if (-not (Get-Command "pandoc" -ErrorAction SilentlyContinue)) {
     $Missing = $true
 }
 
-$weasyCheck = "import os, sys; [os.add_dll_directory(p) for p in os.environ.get('PATH', '').split(';') if os.path.isdir(p)]; import weasyprint"
-
 if ($PythonCmd) {
-    $proc = Start-Process -FilePath $PythonCmd -ArgumentList "-c `"$weasyCheck`"" -NoNewWindow -Wait -PassThru -RedirectStandardError ([System.IO.Path]::GetTempFileName())
-    if ($proc.ExitCode -ne 0) {
-        if (-not (Get-Command "weasyprint" -ErrorAction SilentlyContinue)) {
-            Warn "missing: weasyprint (or missing GTK/GObject libraries on Windows)"
-            $Missing = $true
+    $tempErr = [System.IO.Path]::GetTempFileName()
+    $tempPy = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), ".py")
+    try {
+        Set-Content -Path $tempPy -Value @'
+import os, sys
+for p in os.environ.get("PATH", "").split(";"):
+    if p and os.path.isdir(p):
+        try:
+            os.add_dll_directory(p)
+        except (OSError, AttributeError):
+            pass
+import weasyprint
+'@
+        $proc = Start-Process -FilePath $PythonCmd -ArgumentList "`"$tempPy`"" -NoNewWindow -Wait -PassThru -RedirectStandardError $tempErr
+        if ($proc.ExitCode -ne 0) {
+            if (-not (Get-Command "weasyprint" -ErrorAction SilentlyContinue)) {
+                Warn "missing: weasyprint (or missing GTK/GObject libraries on Windows)"
+                $Missing = $true
+            }
         }
+    } finally {
+        if (Test-Path -LiteralPath $tempErr) { Remove-Item -LiteralPath $tempErr -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $tempPy) { Remove-Item -LiteralPath $tempPy -Force -ErrorAction SilentlyContinue }
     }
 } else {
     $Missing = $true
@@ -96,11 +122,11 @@ New-Item -ItemType Directory -Force -Path $Share | Out-Null
 New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 
 if ($Link) {
-    if (Test-Path $Share) { Remove-Item -Recurse -Force $Share }
+    Remove-DirectorySafely $Share
     New-Item -ItemType SymbolicLink -Path $Share -Target $Src | Out-Null
     Say "-> $Share -> $Src (symlink)"
 } else {
-    if (Test-Path $Share) { Remove-Item -Recurse -Force $Share }
+    Remove-DirectorySafely $Share
     New-Item -ItemType Directory -Force -Path $Share | Out-Null
     Copy-Item (Join-Path $Src "mdpdf.py") $Share
     Copy-Item (Join-Path $Src "design.py") $Share

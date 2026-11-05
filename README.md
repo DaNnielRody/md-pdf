@@ -41,7 +41,9 @@ brew install python@3.12 pandoc weasyprint
 # Windows (winget / pip)
 winget install Python.Python.3.12 JohnMacFarlane.Pandoc
 pip install weasyprint
-# Note: On Windows, WeasyPrint requires GTK3 / GObject DLLs on your PATH (e.g. from MSYS2, Scoop, or Graphviz)
+# Note: On Windows, WeasyPrint uses native GTK3 / GObject DLLs (e.g. from MSYS2, Scoop, or Graphviz)
+# discovered on PATH. mdpdf uses the Python API directly and falls back to the weasyprint CLI if
+# the module or native libraries fail to load.
 ```
 
 Without `npx` or a browser everything else still works; only ` ```mermaid `

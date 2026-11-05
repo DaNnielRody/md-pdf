@@ -790,7 +790,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     try:
         from weasyprint import HTML
         HTML(filename=str(html_path), base_url=md_path.parent.as_uri() + "/").write_pdf(str(out_path))
-    except ImportError:
+    except (ImportError, OSError):
         weasy_bin = shutil.which("weasyprint") or "weasyprint"
         subprocess.run(
             [weasy_bin, "-e", "utf-8", "-u", md_path.parent.as_uri() + "/",
